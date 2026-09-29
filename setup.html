@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ILECO III · First-time setup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1B1B1B; --paper:#F6F4EE; --yellow:#FBC94C; --yellow-deep:#E8A423;
+    --navy:#122236; --navy-2:#193150; --cream:#FFFDF5; --line:rgba(0,0,0,.10);
+    --red:#B7473D; --red-tint:#F6DEDB; --green:#4C7A5E; --green-tint:#DCEBE1;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background:linear-gradient(165deg, var(--yellow) 0%, var(--yellow-deep) 100%);
+    color:var(--ink); font-family:'Inter',system-ui,sans-serif; -webkit-font-smoothing:antialiased;
+    min-height:100vh; display:flex; flex-direction:column;
+  }
+  header.top{ display:flex; align-items:center; gap:12px; justify-content:space-between; padding:14px 40px; background:var(--navy); }
+  .brand{display:flex; align-items:center; gap:12px;}
+  .brand span{font-weight:600; font-size:14.5px; color:#fff;}
+  main{ flex:1 0 auto; display:flex; align-items:center; justify-content:center; padding:40px 20px; }
+  .card{
+    width:100%; max-width:420px; background:var(--cream); border:1px solid var(--line); border-radius:16px;
+    padding:34px 32px 28px; box-shadow:0 1px 2px rgba(0,0,0,.04), 0 24px 60px rgba(0,0,0,.16);
+    opacity:0; transform:translateY(18px); animation:cardIn .5s ease forwards;
+  }
+  @keyframes cardIn{ to{ opacity:1; transform:translateY(0); } }
+  .card h1{ font-family:'Space Grotesk',system-ui,sans-serif; font-size:21px; margin:0 0 4px; }
+  .card p.sub{ margin:0 0 22px; font-size:13.5px; color:#5C5C5C; }
+  label{display:block; font-size:12px; font-weight:600; color:#5C5C5C; margin-bottom:5px;}
+  .field{margin-bottom:15px;}
+  input[type="text"], input[type="password"]{
+    width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:8px;
+    font-size:14px; font-family:inherit; background:#fff; color:var(--ink);
+  }
+  input:focus{ outline:none; border-color:var(--yellow-deep); box-shadow:0 0 0 3px rgba(232,164,35,.18); }
+  .btn{ width:100%; margin-top:6px; cursor:pointer; border:none; border-radius:8px; padding:12px 18px; font-weight:700; font-size:14.5px; background:var(--navy); color:#fff; }
+  .btn:hover{ background:var(--navy-2); }
+  .btn:disabled{ opacity:.6; cursor:not-allowed; }
+  .msg-box{ display:none; margin-bottom:16px; padding:9px 12px; border-radius:8px; font-size:13px; font-weight:600; }
+  .msg-box.error{ background:var(--red-tint); border:1px solid var(--red); color:var(--red); }
+  .msg-box.ok{ background:var(--green-tint); border:1px solid var(--green); color:var(--green); }
+  .hint{ font-size:11.5px; color:#8B96A0; margin:-8px 0 15px; }
+  .done-link{ display:inline-block; margin-top:4px; color:var(--navy); font-weight:700; text-decoration:none; }
+  .done-link:hover{ text-decoration:underline; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span>Iloilo III Electric Cooperative, Inc.</span></div>
+</header>
+<main>
+  <!-- Shown briefly while we ask the server whether setup is still needed -->
+  <div class="card" id="checking-card">
+    <h1>First-time setup</h1>
+    <p class="sub">Checking system status…</p>
+  </div>
+
+  <!-- Shown if an admin account already exists -->
+  <div class="card" id="done-card" style="display:none;">
+    <h1>Setup already completed</h1>
+    <p class="sub">An admin account has already been created for this system. Please sign in instead.</p>
+    <a class="done-link" href="login.html">Go to sign in →</a>
+  </div>
+
+  <!-- The actual first-time setup form -->
+  <form class="card" id="setup-form" autocomplete="off" style="display:none;">
+    <h1>Create the admin account</h1>
+    <p class="sub">This is a one-time step. Choose the username and password you'll use to sign in from now on — after this, everyone (including you) will need a real username and password to log in.</p>
+    <div class="msg-box" id="setup-msg"></div>
+    <div class="field">
+      <label for="username">Username</label>
+      <input type="text" id="username" required autocomplete="username">
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" required autocomplete="new-password" minlength="8">
+    </div>
+    <div class="hint">At least 8 characters.</div>
+    <div class="field">
+      <label for="confirmPassword">Confirm password</label>
+      <input type="password" id="confirmPassword" required autocomplete="new-password" minlength="8">
+    </div>
+    <button type="submit" class="btn" id="setup-btn">Create admin account</button>
+  </form>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* Supabase config — must match login.html, admin.html, change-password.html, index.html and log.html. */
+const SUPABASE_URL = "https://tjmhwetxfglnvavspfsv.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRqbWh3ZXR4ZmdsbnZhdnNwZnN2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NTkzNjgsImV4cCI6MjEwNjIzNTM2OH0.yFpHgASO_0LXNQ5HjYIkBiPmFPgHUODsOs4E1B42FsA";
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+async function sha256Hex(str){
+  const enc = new TextEncoder().encode(str);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+/* Whether an admin account already exists. Checked fresh every time this
+   page loads — never cached — so a stale local flag can't reopen setup. */
+async function hasAnyAccounts(){
+  const { count, error } = await db.from('app_users').select('username', { count:'exact', head:true });
+  if(error) throw new Error(error.message || 'Could not check system status.');
+  return (count || 0) > 0;
+}
+
+async function createFirstAdmin(username, passwordHash){
+  const { count } = await db.from('app_users').select('username', { count:'exact', head:true });
+  if((count||0) > 0) return { ok:false, error:'An admin account already exists.' };
+  const { error } = await db.from('app_users').insert({
+    username, password_hash: passwordHash, role:'admin', must_change_password:false
+  });
+  if(error) return { ok:false, error: error.message.indexOf('duplicate')!==-1 ? 'That username already exists.' : error.message };
+  await db.from('activity_log').insert({ username, role:'admin', action:'Created the admin account (first-time setup)', details:'' });
+  return { ok:true };
+}
+
+const checkingCard = document.getElementById('checking-card');
+const doneCard = document.getElementById('done-card');
+const form = document.getElementById('setup-form');
+const msg = document.getElementById('setup-msg');
+const btn = document.getElementById('setup-btn');
+
+form.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  msg.style.display = 'none';
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+  const confirmPassword = document.getElementById('confirmPassword').value;
+
+  if(!username){ return; }
+  if(password.length < 8){
+    msg.className = 'msg-box error'; msg.textContent = 'Password must be at least 8 characters.'; msg.style.display=''; return;
+  }
+  if(password !== confirmPassword){
+    msg.className = 'msg-box error'; msg.textContent = 'Password and confirmation do not match.'; msg.style.display=''; return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Creating…';
+  try{
+    const passwordHash = await sha256Hex(password);
+    const result = await createFirstAdmin(username, passwordHash);
+    if(!result.ok){
+      msg.className = 'msg-box error'; msg.textContent = result.error || 'Could not create the admin account.'; msg.style.display='';
+      btn.disabled = false; btn.textContent = 'Create admin account';
+      return;
+    }
+    localStorage.setItem('ileco3_session', JSON.stringify({
+      username, role:'admin', loginAt:new Date().toISOString()
+    }));
+    msg.className = 'msg-box ok'; msg.textContent = 'Admin account created — taking you in…'; msg.style.display='';
+    setTimeout(()=>{ location.href = 'admin.html'; }, 800);
+  }catch(err){
+    msg.className = 'msg-box error'; msg.textContent = 'Could not reach the login service: ' + err.message; msg.style.display='';
+    btn.disabled = false; btn.textContent = 'Create admin account';
+  }
+});
+
+/* Always re-check the server before showing the form — this page must
+   never trust a locally-cached "setup needed" assumption. */
+(async function init(){
+  try{
+    const exists = await hasAnyAccounts();
+    checkingCard.style.display = 'none';
+    if(exists){
+      doneCard.style.display = '';
+    } else {
+      form.style.display = '';
+    }
+  }catch(err){
+    checkingCard.querySelector('.sub').textContent = 'Could not reach the login service: ' + err.message;
+  }
+})();
+</script>
+</body>
+</html>
