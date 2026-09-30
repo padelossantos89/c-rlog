@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root{
+:root{
     --paper:#FFF6DE; --panel:#FFFFFF; --ink:#12202E; --ink-soft:#4C5A67; --line:#DCD6C7;
     --amber:#FBC94C; --amber-deep:#D9900F; --amber-tint:#FFEEB8;
     --red:#B7473D; --red-tint:#F6DEDB; --green:#4C7A5E; --green-tint:#DCEBE1;
@@ -256,6 +256,7 @@
         </select>
         <label class="dl-lbl">From <input type="date" id="ov-from"></label>
         <label class="dl-lbl">To <input type="date" id="ov-to"></label>
+        <button class="btn dark" id="ov-search-btn" type="button">🔍 Search</button>
       </div>
       <div id="ov-date-error" style="display:none; margin:-10px 0 16px; padding:8px 12px; border-radius:8px; background:var(--red-tint); border:1px solid var(--red); color:var(--red); font-size:13px; font-weight:600;"></div>
 
@@ -705,6 +706,7 @@ function populateOverallFilters_(){
   f('ov-town').innerHTML   = '<option value="">All towns</option>' + uniq('Town').map(t=>`<option>${esc(t)}</option>`).join('');
   f('ov-type').innerHTML   = '<option value="">All types</option>' + uniq('Type of Complaint').map(t=>`<option>${esc(t)}</option>`).join('');
 }
+let overallSearched = false;
 async function loadOverall(){
   const banner = f('ov-banner');
   let shownCached = false;
@@ -729,11 +731,19 @@ async function loadOverall(){
   banner.innerHTML = failed.length
     ? `<div class="conn">Couldn't load: ${esc(failed.join(', '))}. The records shown are incomplete — try Refresh.</div>`
     : '';
+  overallSearched = true;
   populateOverallFilters_();
   renderOverall();
 }
 
 function renderOverall(){
+  const body = f('overall-body');
+  const ncols = document.querySelectorAll('#overall-table thead th').length;
+  if(!overallSearched){
+    f('ov-stat-row').innerHTML = '';
+    body.innerHTML = `<tr><td colspan="${ncols}"><div class="empty">Enter a search term or choose filters above, then click 🔍 Search.</div></td></tr>`;
+    return;
+  }
   const q = f('ov-search').value.trim().toLowerCase();
   const status = f('ov-status').value, office = f('ov-office').value, town = f('ov-town').value, type = f('ov-type').value;
   const from = f('ov-from').value, to = f('ov-to').value;
@@ -761,8 +771,6 @@ function renderOverall(){
     <div class="stat"><div class="num">${sum('Duration (min)')}</div><div class="lbl">Total duration (min)</div></div>
     <div class="stat"><div class="num">${sum('Duration Less Travel Time (min)')}</div><div class="lbl">Total duration less travel (min)</div></div>`;
 
-  const body = f('overall-body');
-  const ncols = document.querySelectorAll('#overall-table thead th').length;
   if(rows.length===0){
     body.innerHTML = `<tr><td colspan="${ncols}"><div class="empty">No records match. Try clearing the search or filters.</div></td></tr>`;
     return;
@@ -781,8 +789,14 @@ function renderOverall(){
     </tr>`).join('');
 }
 
-['ov-search'].forEach(id=>f(id).addEventListener('input', renderOverall));
-['ov-office','ov-town','ov-type','ov-status','ov-from','ov-to'].forEach(id=>f(id).addEventListener('change', renderOverall));
+function runOverallSearch_(){
+  if(!overallSearched){ loadOverall(); }   // first search: fetch from the 4 offices
+  else { renderOverall(); }                // already loaded: just re-filter, no extra data usage
+}
+['ov-search'].forEach(id=>f(id).addEventListener('input', ()=>{ if(overallSearched) renderOverall(); }));
+f('ov-search').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); runOverallSearch_(); } });
+['ov-office','ov-town','ov-type','ov-status','ov-from','ov-to'].forEach(id=>f(id).addEventListener('change', ()=>{ if(overallSearched) renderOverall(); }));
+f('ov-search-btn').addEventListener('click', runOverallSearch_);
 f('ov-refresh-btn').addEventListener('click', loadOverall);
 
 /* ---------- Excel export for Overall Records: same workbook layout as log.html ---------- */
@@ -1330,7 +1344,7 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
     btn.classList.add('active');
     document.getElementById('view-'+btn.dataset.view).classList.add('active');
     if(btn.dataset.view==='activity') renderActivity();
-    if(btn.dataset.view==='overall') loadOverall();
+    if(btn.dataset.view==='overall') renderOverall();   // shows the search prompt; no fetch until the admin searches
   });
 });
 
