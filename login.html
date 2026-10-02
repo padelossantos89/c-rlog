@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="referrer" content="no-referrer">
+<title>ILECO III · Sign in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="base.css">
+<link rel="stylesheet" href="login.css">
+</head>
+<body>
+<div class="wm">
+  <div class="wm-base"></div>
+  <div class="wm-shine"></div>
+</div>
+
+<header class="top">
+  <div class="brand">
+    <div class="mark"></div>
+    <span>Iloilo III Electric Cooperative, Inc.</span>
+  </div>
+  <div class="tag">Complaint &amp; Request Log</div>
+</header>
+
+<main>
+  <form class="card" id="login-form" autocomplete="off" style="display:none;">
+    <h1>Sign in</h1>
+    <p class="sub">Enter your username and password to continue.</p>
+
+    <div class="error-box" id="login-error"></div>
+
+    <div class="field">
+      <label for="username">Username</label>
+      <input type="text" id="username" required autocomplete="username" maxlength="32" autocapitalize="none" spellcheck="false">
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" required autocomplete="current-password" maxlength="128">
+    </div>
+
+    <button type="submit" class="btn" id="login-btn">Log in</button>
+  </form>
+
+  <div class="card" id="setup-card" style="display:none;">
+    <h1>Welcome — let's set this up</h1>
+    <p class="sub">No admin account exists yet. Set one up to continue — after that, everyone (including you) will need a username and password to sign in.</p>
+    <a class="btn" id="setup-link" href="setup.html" style="display:block; text-align:center; text-decoration:none; box-sizing:border-box;">Go to first-time setup</a>
+  </div>
+
+  <div class="card" id="checking-card">
+    <h1>Sign in</h1>
+    <p class="sub">Checking system status…</p>
+  </div>
+</main>
+
+<footer class="foot">
+  <div><strong>ileco3@gmail.com</strong></div>
+  <div>Iloilo III Electric Cooperative, Inc.</div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" crossorigin="anonymous"></script>
+<script src="config.js"></script>
+<script src="common.js"></script>
+<script src="login.js"></script>
+</body>
+</html>
