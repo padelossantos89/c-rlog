@@ -1,0 +1,31 @@
+/* field crew — mobile first */
+html,body{min-height:100%}
+body{padding-bottom:env(safe-area-inset-bottom,0)}
+header.top{min-height:0;box-shadow:none;position:sticky;top:0;z-index:5;padding:calc(10px + env(safe-area-inset-top,0)) 14px 10px}
+header.top .who{flex:1;display:flex;flex-direction:column;font-size:13px;line-height:1.2}
+header.top .who span{opacity:.85;font-size:12px}
+.out{font:inherit;font-size:12px;font-weight:600;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.5);border-radius:8px;padding:7px 10px}
+#app{padding:14px;max-width:640px;margin:0 auto}
+.bar{display:flex;gap:8px;margin-bottom:10px}
+.bar select,.bar input{flex:1;min-height:44px;font-size:16px}
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tab{flex:1;min-height:44px;font:inherit;font-weight:600;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--navy)}
+.tab.on{background:var(--navy);color:#fff}
+.item{display:block;width:100%;text-align:left;font:inherit;background:#fff;border:1px solid var(--line);border-left:5px solid var(--amber);border-radius:12px;padding:12px 14px;margin-bottom:10px;box-shadow:var(--shadow)}
+.item.done{border-left-color:var(--green)}
+.item .cn{font-family:'IBM Plex Mono',monospace;font-weight:600}
+.item .who2{font-weight:600;margin-top:2px}
+.item .sm2{font-size:12.5px;color:var(--ink-soft)}
+.sheet-bg{position:fixed;inset:0;background:rgba(18,32,46,.55);display:none;align-items:flex-end;z-index:20}
+.sheet-bg.open{display:flex}
+.sheet{background:#fff;width:100%;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom,0))}
+.sheet h2{font-size:18px;margin-bottom:2px}
+.sheet .row{margin-bottom:12px}
+.sheet input,.sheet textarea{font-size:16px;min-height:44px}
+.sheet input[type=date],.sheet input[type=time]{width:100%}
+.sheet .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sheet .actions{display:flex;gap:10px;margin-top:8px}
+.sheet .actions .btn{flex:1;min-height:46px}
+.calc{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:6px 0 12px}
+.calc div{background:#F7F4EC;border-radius:8px;padding:6px 4px;text-align:center}
+.calc b{display:block;font-family:'IBM Plex Mono',monospace}.calc span{font-size:10px;color:var(--ink-soft)}

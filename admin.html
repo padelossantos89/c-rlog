@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" type="image/png" href="logo.png">
+<title>ILECO III · Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="base.css">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body class="protected">
+<div class="wm"><div class="wm-base"></div><div class="wm-shine"></div></div>
+
+<header class="letterhead">
+  <div class="brand">
+    <div class="mark"></div>
+    <div>
+      <h1>Iloilo III Electric Cooperative, Inc.</h1>
+      <p>Administrator · <span id="admin-username">—</span></p>
+    </div>
+  </div>
+  <div class="meta">
+    <div><a href="#" id="logout-link">Log out</a></div>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="rail">
+    <button class="nav-btn active" data-view="users">👤 Users</button>
+    <button class="nav-btn" data-view="activity">📜 Activity Log</button>
+    <button class="nav-btn" data-view="overall">🗂️ Overall Records</button>
+    <div style="height:1px; background:rgba(18,32,46,.15); margin:8px 4px;"></div>
+    <a href="index.html">🏢 Select Office</a>
+  </nav>
+
+  <main>
+    <div id="conn-banner"></div>
+
+    <!-- ============ USERS VIEW ============ -->
+    <section class="view active" id="view-users">
+      <div class="page-head">
+        <h2>Users</h2>
+      </div>
+
+      <fieldset>
+        <legend>Create a new user</legend>
+        <div class="error-box" id="create-error"></div>
+        <form id="create-user-form">
+          <div class="grid">
+            <div><label for="newUsername">Username</label><input type="text" id="newUsername" required maxlength="32" autocomplete="off" autocapitalize="none"></div>
+            <div><label for="newTempPassword">Temporary password</label><input type="text" id="newTempPassword" required minlength="12" maxlength="128" autocomplete="off"></div>
+            <div><label for="newRole">Role</label>
+              <select id="newRole">
+                <option value="office">Office user</option>
+                <option value="field">Field user</option>
+                <option value="admin">Admin (full access)</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:14px; display:flex; align-items:center;">
+            <button type="submit" class="btn primary" id="create-user-btn">Create user</button>
+            <span class="toast" id="create-toast"></span>
+          </div>
+        </form>
+      </fieldset>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Username</th><th>Role</th><th>Password status</th><th>Created</th><th>Actions</th></tr></thead>
+          <tbody id="users-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ ACTIVITY VIEW ============ -->
+    <section class="view" id="view-activity">
+      <div class="page-head">
+        <h2>Activity Log</h2>
+        <p>Logins, logouts, complaints encoded, field responses modified, and Excel downloads — across every user.</p>
+      </div>
+      <div class="act-filters">
+        <input type="search" id="act-search" class="act-search" placeholder="Search user, role, action, or details…" autocomplete="off">
+        <label class="act-date">From <input type="date" id="act-from"></label>
+        <label class="act-date">To <input type="date" id="act-to"></label>
+        <button class="btn ghost" id="act-clear-btn" type="button">Clear</button>
+        <button class="btn ghost" id="refresh-activity-btn" type="button">↻ Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>When</th><th>User</th><th>Role</th><th>Action</th><th>Details</th></tr></thead>
+          <tbody id="activity-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ OVERALL RECORDS VIEW ============ -->
+    <section class="view" id="view-overall">
+      <div class="ov-head">
+        <div><h2>Overall Records</h2></div>
+        <div class="ov-dl">
+          <label class="dl-lbl">From <input type="date" id="ov-dl-from"></label>
+          <label class="dl-lbl">To <input type="date" id="ov-dl-to"></label>
+          <button class="btn dark" id="ov-download-btn" type="button">⬇ Download Excel</button>
+        </div>
+        <div class="ov-dl">
+          <label class="dl-lbl">From <input type="date" id="ov-full-from"></label>
+          <label class="dl-lbl">To <input type="date" id="ov-full-to"></label>
+          <button class="btn ghost" id="ov-download-all-btn" type="button">⬇ Download Excel (Full Data)</button>
+        </div>
+        <button class="btn ghost" id="ov-refresh-btn" type="button">↻ Refresh</button>
+      </div>
+      <div id="ov-banner"></div>
+      <div id="ov-dl-error" style="display:none; margin:-10px 0 16px; padding:8px 12px; border-radius:8px; background:var(--red-tint); border:1px solid var(--red); color:var(--red); font-size:13px; font-weight:600;"></div>
+      <div id="ov-full-error" style="display:none; margin:-10px 0 16px; padding:8px 12px; border-radius:8px; background:var(--red-tint); border:1px solid var(--red); color:var(--red); font-size:13px; font-weight:600;"></div>
+
+      <div class="stat-row" id="ov-stat-row"></div>
+
+      <div class="toolbar">
+        <input type="search" id="ov-search" placeholder="Search complainant, barangay, action…">
+        <select id="ov-office"><option value="">All offices</option></select>
+        <select id="ov-town"><option value="">All towns</option></select>
+        <select id="ov-type"><option value="">All types</option></select>
+        <select id="ov-status">
+          <option value="">Status of Complaint &amp; Request</option>
+          <option value="Completed">Completed</option>
+          <option value="Pending">Pending</option>
+        </select>
+        <label class="dl-lbl">From <input type="date" id="ov-from"></label>
+        <label class="dl-lbl">To <input type="date" id="ov-to"></label>
+        <button class="btn dark" id="ov-search-btn" type="button">🔍 Search</button>
+      </div>
+      <div id="ov-date-error" style="display:none; margin:-10px 0 16px; padding:8px 12px; border-radius:8px; background:var(--red-tint); border:1px solid var(--red); color:var(--red); font-size:13px; font-weight:600;"></div>
+
+      <div class="table-wrap" id="overall-table-wrap">
+        <table id="overall-table">
+          <thead><tr><th>No</th><th>Office</th><th>Control No.</th><th>Status</th><th>Date received</th><th>Time received</th><th>Received by</th><th>Complainant</th><th>Contact No.</th><th>Sitio / Barangay</th><th>Town</th><th>Type</th><th>Description</th><th>Account name</th><th>Account no.</th><th>Meter no.</th><th>Serial no.</th><th>Pole no.</th><th>Acted by</th><th>Action taken</th><th>Date acted</th><th>Place of origin</th><th>Departure</th><th>Place of arrival</th><th>Arrival</th><th>Finished</th><th class="num">Travel</th><th class="num">Work</th><th class="num">Trvl+Work</th><th class="num">Duration</th><th class="num">Net dur.</th></tr></thead>
+          <tbody id="overall-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" crossorigin="anonymous"></script>
+<script src="config.js"></script>
+<script src="common.js"></script>
+<script src="records.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>

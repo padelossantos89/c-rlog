@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" type="image/png" href="logo.png">
+<title>ILECO III · Complaints &amp; Response Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="base.css">
+<link rel="stylesheet" href="log.css">
+</head>
+<body class="protected">
+<div class="wm">
+  <div class="wm-base"></div>
+  <div class="wm-shine"></div>
+</div>
+
+<header class="letterhead">
+  <div class="brand">
+    <div class="mark"></div>
+    <div>
+      <h1>Iloilo III Electric Cooperative, Inc.</h1>
+      <p id="branch-subtitle">Pani-an Branch Office &middot; Complaints &amp; Field Response Log</p>
+    </div>
+  </div>
+  <div class="meta">
+    <div id="branch-address">Main Office &middot; Brgy. Preciosa, Sara, Iloilo</div>
+    <div id="branch-contact"><strong>ileco3@gmail.com</strong> &middot; ileco3.pao@gmail.com</div>
+    <div style="margin-top:6px;"><a href="index.html" id="change-branch" style="color:#12202E; text-decoration:underline; font-weight:600;">&larr; Change office</a> &middot; <a href="#" id="logout-link" style="color:#12202E; text-decoration:underline; font-weight:600;">Log out</a></div>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="rail">
+    <button class="nav-btn active" data-view="log">📝 Complaint/Request</button>
+    <button class="nav-btn" data-view="records">📋 Records</button>
+    <button class="nav-btn" data-view="summary">📊 Summary</button>
+  </nav>
+
+  <main>
+    <div id="conn-banner"></div>
+
+    <!-- ============ LOG VIEW ============ -->
+    <section class="view active" id="view-log">
+      <div class="page-head">
+        <div>
+          <h2>Log a complaint/request</h2>
+          <p>Save the complaint/request as it's received to generate a Control Number, then use that number to fill in the field response once the crew has acted on it.</p>
+        </div>
+      </div>
+
+      <form id="complaint-form">
+        <fieldset>
+          <legend>Complaint / Request Received</legend>
+          <div class="grid">
+            <div><label for="dateReceived">Date received</label><input type="date" id="dateReceived" required></div>
+            <div><label for="timeReceived">Time received</label><input type="time" id="timeReceived" required></div>
+            <div><label for="receivedBy">Received by</label><input type="text" id="receivedBy" placeholder="e.g. BAAT" required></div>
+            <div><label for="complainant">Name of complainant</label><input type="text" id="complainant" placeholder="e.g. Juan Dela Cruz" required></div>
+            <div><label for="contactNumber">Contact number</label><input type="text" id="contactNumber" placeholder="e.g. 09171234567"></div>
+            <div><label for="sitio">Purok / Sitio / Street / Zone</label><input type="text" id="sitio" placeholder="e.g. P.2"></div>
+            <div>
+              <label for="barangay">Barangay</label>
+              <select id="barangay" required><option value="">-- Select Barangay --</option></select>
+            </div>
+            <div><label for="town">Town</label><input type="text" id="town" placeholder="e.g. Carles" readonly required></div>
+            <div>
+              <label for="type">Type of complaint</label>
+              <select id="type" required>
+                <option value="">-- Select type --</option>
+                <optgroup label="SDI">
+                  <option value="SD1">SD1 - Cut-off</option>
+                  <option value="SD2">SD2 - Loose</option>
+                  <option value="SD3">SD3 - Sagging</option>
+                  <option value="SD4">SD4 - Sparking</option>
+                </optgroup>
+                <optgroup label="KWH Meter">
+                  <option value="K1">K1 - Damaged/Burned/Stopped</option>
+                  <option value="K2">K2 - Defective</option>
+                </optgroup>
+                <optgroup label="Line Fault">
+                  <option value="LF1">LF1 - Vegetation, Animal Contact, Lightning, and Damage on Hardwares</option>
+                  <option value="LF2">LF2 - Broken Insulator</option>
+                  <option value="LF3">LF3 - Transformer Loose Connection</option>
+                  <option value="LF4">LF4 - Others (Private Transformer)</option>
+                </optgroup>
+                <optgroup label="Bill">
+                  <option value="B1">B1 - No bill</option>
+                  <option value="B2">B2 - For adjustment of bill</option>
+                  <option value="B3">B3 - For cancellation of bill/not used</option>
+                  <option value="B4">B4 - Sudden increase/correct reading</option>
+                </optgroup>
+                <optgroup label="Pole">
+                  <option value="P1">P1 - Leaning</option>
+                  <option value="P2">P2 - Rotten</option>
+                  <option value="P3">P3 - Burned</option>
+                  <option value="P4">P4 - Toppled</option>
+                </optgroup>
+                <optgroup label="Transformer">
+                  <option value="T1">T1 - Busted transformer</option>
+                </optgroup>
+                <optgroup label="Low Voltage">
+                  <option value="LV1">LV1 - Over extended lines</option>
+                  <option value="LV2">LV2 - Loose connection on primary/secondary lines</option>
+                  <option value="LV3">LV3 - Others</option>
+                </optgroup>
+                <optgroup label="Others">
+                  <option value="OP1">OP1 - Others, please specify</option>
+                </optgroup>
+                <optgroup label="Requests">
+                  <option value="O1">O1 - Calibration</option>
+                  <option value="O2">O2 - Transfer of kWh &amp; SD1</option>
+                  <option value="O3">O3 - Clearing/Rehab/Relocation of Down</option>
+                  <option value="O4">O4 - Temporary Disco</option>
+                  <option value="O5">O5 - Correction of Account Name / Type of Consumer &amp; Others</option>
+                  <option value="O6">O6 - Change of Family Name (Change Status)</option>
+                  <option value="O7">O7 - Retirement of Transformer</option>
+                  <option value="O8">O8 - Debit/Credit Memo</option>
+                  <option value="O9">O9 - Transfer of Pole</option>
+                  <option value="O10">O10 - Refund of Energy Deposit</option>
+                  <option value="O11">O11 - Change/Upgrade of SDI</option>
+                </optgroup>
+              </select>
+            </div>
+            <div><label for="description">Description</label><input type="text" id="description" placeholder="e.g. No power since yesterday evening"></div>
+          </div>
+
+          <fieldset style="margin-top:14px;">
+            <legend>Bill details</legend>
+            <div class="grid">
+              <div><label for="acctName">Account Name</label><input type="text" id="acctName" placeholder="e.g. Patrick Angelo de los Santos"></div>
+              <div><label for="acctNumber">Account Number</label><input type="text" id="acctNumber" placeholder="e.g. 10-1039-7777"></div>
+              <div><label for="meterNumber">Meter Number</label><input type="text" id="meterNumber" placeholder="e.g. 987654"></div>
+              <div><label for="serialNumber">Serial Number</label><input type="text" id="serialNumber" placeholder="e.g. 800012736452"></div>
+              <div><label for="poleNumber">Pole Number</label><input type="text" id="poleNumber" placeholder="e.g. DF-0092-12"></div>
+            </div>
+          </fieldset>
+        </fieldset>
+
+        <div class="form-actions">
+          <button type="submit" class="btn primary">Generate Control Number</button>
+          <div class="box" id="control-number-display" style="display:none; background:var(--amber-tint); border:1px dashed var(--amber-deep); border-radius:8px; padding:8px 14px;">
+            <div class="k" style="font-size:10.5px; color:var(--amber-deep); text-transform:uppercase; letter-spacing:.03em;">Control Number</div>
+            <div class="v mono" id="control-number-value" style="font-size:16px; font-weight:600;">–</div>
+          </div>
+          <button type="reset" class="btn ghost">Clear form</button>
+          <span class="toast" id="save-toast"></span>
+        </div>
+      </form>
+
+      <form id="fieldresponse-form">
+        <fieldset>
+          <legend>Field response</legend>
+          <div class="field-note" style="margin-bottom:10px;">Save a complaint above to get a Control Number and unlock this section automatically — or type/paste an existing Control Number here and press Enter to look one up.</div>
+          <div class="grid">
+            <div><label for="frControl">Control Number</label><input type="text" id="frControl" placeholder="e.g. PBO-09-22-0001 — press Enter">
+              <div id="fr-lookup-msg" style="font-size:11px; margin-top:4px; min-height:14px;"></div>
+            </div>
+            <div><label for="frComplainant">Name of complainant</label><input type="text" id="frComplainant" readonly placeholder="–"></div>
+            <div><label for="frAddress">Address</label><input type="text" id="frAddress" readonly placeholder="–"></div>
+            <div><label for="actedBy">Acted by</label><input type="text" id="actedBy" placeholder="e.g. Balberona/Bendecio" disabled></div>
+            <div style="grid-column:span 2;"><label for="action">Action taken</label><input type="text" id="action" placeholder="e.g. Repaired SDI loose connection" disabled></div>
+            <div><label for="dateActed">Date acted</label><input type="date" id="dateActed" disabled></div>
+            <div><label for="origin">Place of origin</label><input type="text" id="origin" placeholder="e.g. PAO" disabled></div>
+            <div><label for="arrivalPlace">Place of arrival</label><input type="text" id="arrivalPlace" placeholder="e.g. P.2, Tarong, Carles" disabled></div>
+            <div><label for="departureTime">Departure time</label><input type="time" id="departureTime" disabled></div>
+            <div><label for="arrivalTime">Arrival time</label><input type="time" id="arrivalTime" disabled></div>
+            <div><label for="finishTime">Time finished</label><input type="time" id="finishTime" disabled></div>
+          </div>
+          <div class="field-note">Durations below update live as you fill in the times above.</div>
+          <div class="computed-row">
+            <div class="box"><div class="v mono" id="calcTravel">–</div><div class="k">Travel (min)</div></div>
+            <div class="box"><div class="v mono" id="calcWork">–</div><div class="k">Work (min)</div></div>
+            <div class="box"><div class="v mono" id="calcSum">–</div><div class="k">Travel + work</div></div>
+            <div class="box"><div class="v mono" id="calcDuration">–</div><div class="k">Duration (min)</div></div>
+            <div class="box"><div class="v mono" id="calcNet">–</div><div class="k">Duration less travel</div></div>
+          </div>
+          <div id="fr-validation-error" style="display:none; margin-top:12px; padding:9px 12px; border-radius:8px; background:var(--red-tint); border:1px solid var(--red); color:var(--red); font-size:13px; font-weight:600;"></div>
+        </fieldset>
+
+        <div class="form-actions">
+          <button type="submit" class="btn primary" id="fr-submit-btn" disabled>Save field response</button>
+          <span class="toast" id="fr-save-toast"></span>
+        </div>
+      </form>
+
+    </section>
+
+    <!-- ============ RECORDS VIEW ============ -->
+    <section class="view" id="view-records">
+      <div class="page-head">
+        <div>
+          <h2>Records</h2>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <label style="font-size:12px; color:var(--ink-soft); display:flex; align-items:center; gap:6px;">From <input type="date" id="dl-from-date" style="width:auto;"></label>
+          <label style="font-size:12px; color:var(--ink-soft); display:flex; align-items:center; gap:6px;">To <input type="date" id="dl-to-date" style="width:auto;"></label>
+          <button class="btn primary" id="download-btn">⬇ Download Excel</button>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <label style="font-size:12px; color:var(--ink-soft); display:flex; align-items:center; gap:6px;">From <input type="date" id="full-from-date" style="width:auto;"></label>
+          <label style="font-size:12px; color:var(--ink-soft); display:flex; align-items:center; gap:6px;">To <input type="date" id="full-to-date" style="width:auto;"></label>
+          <button class="btn ghost" id="download-all-btn">⬇ Download Excel (Full Data)</button>
+        </div>
+        <button class="btn ghost" id="refresh-btn">↻ Refresh</button>
+      </div>
+      <div id="dl-date-error" style="display:none; margin:-10px 0 16px; padding:8px 12px; border-radius:8px; background:var(--red-tint); border:1px solid var(--red); color:var(--red); font-size:13px; font-weight:600;"></div>
+      <div id="full-date-error" style="display:none; margin:-10px 0 16px; padding:8px 12px; border-radius:8px; background:var(--red-tint); border:1px solid var(--red); color:var(--red); font-size:13px; font-weight:600;"></div>
+
+      <div class="stat-row" id="stat-row"></div>
+
+      <div class="toolbar">
+        <input type="search" id="search-box" placeholder="Search complainant, barangay, action…">
+        <select id="filter-town"><option value="">All towns</option></select>
+        <select id="filter-type"><option value="">All types</option></select>
+        <label style="font-size:12px; color:var(--ink-soft); display:flex; align-items:center; gap:6px;">From <input type="date" id="filter-from-date" style="width:auto;"></label>
+        <label style="font-size:12px; color:var(--ink-soft); display:flex; align-items:center; gap:6px;">To <input type="date" id="filter-to-date" style="width:auto;"></label>
+      </div>
+      <div id="tbl-date-error" style="display:none; margin:-8px 0 14px; padding:8px 12px; border-radius:8px; background:var(--red-tint); border:1px solid var(--red); color:var(--red); font-size:13px; font-weight:600;"></div>
+
+      <div class="table-wrap">
+        <table id="records-table">
+          <thead>
+            <tr>
+              <th>No</th><th>Control No.</th><th>Status</th><th>Date received</th><th>Time received</th><th>Received by</th>
+              <th>Complainant</th><th>Contact No.</th><th>Sitio / Barangay</th><th>Town</th><th>Type</th><th>Description</th>
+              <th>Account name</th><th>Account no.</th><th>Meter no.</th><th>Serial no.</th><th>Pole no.</th>
+              <th>Acted by</th><th>Action taken</th><th>Date acted</th>
+              <th>Place of origin</th><th>Departure</th><th>Place of arrival</th><th>Arrival</th><th>Finished</th>
+              <th class="num">Travel</th><th class="num">Work</th><th class="num">Trvl+Work</th><th class="num">Duration</th><th class="num">Net dur.</th>
+            </tr>
+          </thead>
+          <tbody id="records-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ SUMMARY VIEW ============ -->
+    <section class="view" id="view-summary">
+      <div class="page-head">
+        <div>
+          <h2>Summary</h2>
+          <p>Totals for every record currently loaded.</p>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <label style="font-size:12px; color:var(--ink-soft); display:flex; align-items:center; gap:6px;">From <input type="date" id="summary-from-date" style="width:auto;"></label>
+          <label style="font-size:12px; color:var(--ink-soft); display:flex; align-items:center; gap:6px;">To <input type="date" id="summary-to-date" style="width:auto;"></label>
+        </div>
+      </div>
+      <div id="summary-date-error" style="display:none; margin:-10px 0 16px; padding:8px 12px; border-radius:8px; background:var(--red-tint); border:1px solid var(--red); color:var(--red); font-size:13px; font-weight:600;"></div>
+
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:12px 16px; margin-bottom:8px; box-shadow:var(--shadow);">
+        <strong style="font-size:13px;">Download report:</strong>
+        <label style="font-size:12px; color:var(--ink-soft); display:flex; align-items:center; gap:6px;">From <input type="date" id="summary-dl-from-date" style="width:auto;"></label>
+        <label style="font-size:12px; color:var(--ink-soft); display:flex; align-items:center; gap:6px;">To <input type="date" id="summary-dl-to-date" style="width:auto;"></label>
+        <button class="btn primary" id="summary-download-btn">⬇ Download Excel</button>
+      </div>
+      <div id="summary-dl-date-error" style="display:none; margin:-4px 0 12px; padding:8px 12px; border-radius:8px; background:var(--red-tint); border:1px solid var(--red); color:var(--red); font-size:13px; font-weight:600;"></div>
+
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:12px 16px; margin-bottom:18px; box-shadow:var(--shadow);">
+        <strong style="font-size:13px;">Download full report (all data):</strong>
+        <label style="font-size:12px; color:var(--ink-soft); display:flex; align-items:center; gap:6px;">From <input type="date" id="summary-full-from-date" style="width:auto;"></label>
+        <label style="font-size:12px; color:var(--ink-soft); display:flex; align-items:center; gap:6px;">To <input type="date" id="summary-full-to-date" style="width:auto;"></label>
+        <button class="btn ghost" id="summary-download-all-btn">⬇ Download Excel (Full Data)</button>
+      </div>
+      <div id="summary-full-date-error" style="display:none; margin:-10px 0 16px; padding:8px 12px; border-radius:8px; background:var(--red-tint); border:1px solid var(--red); color:var(--red); font-size:13px; font-weight:600;"></div>
+
+      <div class="stat-row" id="summary-stats"></div>
+
+      <fieldset>
+        <legend>Complaints &amp; Requests by town</legend>
+        <svg id="bar3d-town" viewBox="0 0 480 220" style="width:100%; max-width:520px; height:auto;"></svg>
+        <div id="bar3d-town-legend"></div>
+      </fieldset>
+      <fieldset>
+        <legend>Complaints &amp; Requests by type</legend>
+        <svg id="bar3d-type" viewBox="0 0 480 220" style="width:100%; max-width:520px; height:auto;"></svg>
+        <div id="bar3d-type-legend"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Complaints &amp; Requests by Barangay</legend>
+        <svg id="bar3d-barangay" viewBox="0 0 480 220" style="width:100%; max-width:520px; height:auto;"></svg>
+        <div id="bar3d-barangay-legend"></div>
+      </fieldset>
+    </section>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" crossorigin="anonymous"></script>
+<script src="config.js"></script>
+<script src="common.js"></script>
+<script src="records.js"></script>
+<script src="barangays.js"></script>
+<script src="log.js"></script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" type="image/png" href="logo.png">
+<title>ILECO III · First-time setup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="base.css">
+<link rel="stylesheet" href="setup.css">
+</head>
+<body class="amber">
+<div class="wm">
+  <div class="wm-base"></div>
+  <div class="wm-shine"></div>
+</div>
+
+<header class="top">
+  <div class="brand">
+    <div class="mark"></div>
+    <span>Iloilo III Electric Cooperative, Inc.</span>
+  </div>
+  <div class="tag">Complaint &amp; Request Log</div>
+</header>
+<main>
+  <!-- Shown briefly while we ask the server whether setup is still needed -->
+  <div class="card" id="checking-card">
+    <h1>First-time setup</h1>
+    <p class="sub">Checking system status…</p>
+  </div>
+
+  <!-- Shown if an admin account already exists -->
+  <div class="card" id="done-card" style="display:none;">
+    <h1>Setup already completed</h1>
+    <p class="sub">An admin account has already been created for this system. Please sign in instead.</p>
+    <a class="done-link" href="login.html">Go to sign in →</a>
+  </div>
+
+  <!-- The actual first-time setup form -->
+  <form class="card" id="setup-form" autocomplete="off" style="display:none;">
+    <h1>Create the admin account</h1>
+    <p class="sub">This is a one-time step. Choose the username and password you'll use to sign in from now on — after this, everyone (including you) will need a real username and password to log in.</p>
+    <div class="msg-box" id="setup-msg"></div>
+    <div class="field">
+      <label for="setupKey">Setup key</label>
+      <input type="password" id="setupKey" required autocomplete="off">
+    </div>
+    <div class="hint">The one-time key set as the SETUP_KEY secret when the server was deployed.</div>
+    <div class="field">
+      <label for="username">Username</label>
+      <input type="text" id="username" required autocomplete="username">
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" required autocomplete="new-password" minlength="12" maxlength="128">
+    </div>
+    <div class="hint">At least 12 characters, with letters and numbers.</div>
+    <div class="field">
+      <label for="confirmPassword">Confirm password</label>
+      <input type="password" id="confirmPassword" required autocomplete="new-password" minlength="12" maxlength="128">
+    </div>
+    <button type="submit" class="btn" id="setup-btn">Create admin account</button>
+  </form>
+</main>
+
+<footer class="foot">
+  <div><strong>ileco3@gmail.com</strong></div>
+  <div>Iloilo III Electric Cooperative, Inc.</div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" crossorigin="anonymous"></script>
+<script src="config.js"></script>
+<script src="common.js"></script>
+<script src="setup.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000">
+<path d="M881.2,363.2 L966.8,368.5 L985.0,497.8 L904.1,526.5 A405 405 0 0 1 888.8,613.4 L955.0,668.0 L893.7,783.3 L811.4,758.9 A405 405 0 0 1 747.9,820.2 L769.3,903.3 L652.0,960.6 L599.7,892.5 A405 405 0 0 1 512.3,904.8 L480.8,984.6 L352.3,962.0 L350.0,876.2 A405 405 0 0 1 272.0,834.8 L199.6,880.8 L108.9,786.9 L157.5,716.1 A405 405 0 0 1 118.8,636.8 L33.2,631.5 L15.0,502.2 L95.9,473.5 A405 405 0 0 1 111.2,386.6 L45.0,332.0 L106.3,216.7 L188.6,241.1 A405 405 0 0 1 252.1,179.8 L230.7,96.7 L348.0,39.4 L400.3,107.5 A405 405 0 0 1 487.7,95.2 L519.2,15.4 L647.7,38.0 L650.0,123.8 A405 405 0 0 1 728.0,165.2 L800.4,119.2 L891.1,213.1 L842.5,283.9 A405 405 0 0 1 881.2,363.2 Z" fill="#8A5A00" fill-opacity=".10" stroke="#8A5A00" stroke-opacity=".28" stroke-width="9" stroke-linejoin="round"/>
+<circle cx="500" cy="500" r="352" fill="none" stroke="#8A5A00" stroke-opacity=".28" stroke-width="12"/>
+<circle cx="500" cy="500" r="232" fill="none" stroke="#8A5A00" stroke-opacity=".28" stroke-width="10"/>
+<defs><path id="t" d="M180,500 A320,320 0 1 1 820,500"/><path id="b" d="M160,500 A340,340 0 0 0 840,500"/></defs>
+<g font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="64" letter-spacing="7" fill="#8A5A00" fill-opacity=".30" text-anchor="middle">
+<text><textPath href="#t" startOffset="50%">ILOILO III ELECTRIC COOPERATIVE, INC.</textPath></text>
+<text font-size="58"><textPath href="#b" startOffset="50%">SARA, ILOILO</textPath></text></g>
+<circle cx="500" cy="500" r="120" fill="#8A5A00" fill-opacity=".10"/>
+<polygon points="520,400 440,520 495,520 475,610 565,480 505,480" fill="#8A5A00" fill-opacity=".25"/>
+</svg>
