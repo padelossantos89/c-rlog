@@ -1,5 +1,0 @@
-/* complaint log page — layout comes from base.css */
-.letterhead h1{font-size:18px}
-#control-number-display{min-width:190px}
-#fr-lookup-msg.ok{color:var(--green)}#fr-lookup-msg.err{color:var(--red)}
-svg text{font-family:Inter,sans-serif;font-size:10px;fill:var(--ink)}
