@@ -18,10 +18,14 @@ body{display:flex;flex-direction:column}
   display:inline-block;
   padding:16px 36px;
 
-  background:var(--navy);        /* dark panel so the amber text pops */
+  background:#FFFFFF;            /* white background */
   border-radius:18px;
-  box-shadow:0 10px 30px rgba(27,27,27,.25),
-             0 0 0 3px #F7C142;  /* amber outline to match the text */
+  box-shadow:0 10px 30px rgba(27,27,27,.18),
+             0 0 0 3px var(--navy);
+
+  /* thin dark edge so the amber letters stay readable on white */
+  -webkit-text-stroke:1.5px var(--navy);
+  paint-order:stroke fill;
 
   animation:heroIn .6s cubic-bezier(.2,.8,.2,1) both;
 }
