@@ -1,196 +1,1444 @@
-(async function () {
-  'use strict';
-  const A = window.App, R = window.Records, $ = A.$;
+/* =========================================================================
+   ILECO III — Complaint & Request Log  (Supabase edition)
+   Same screens and logic as the Firestore version. Data now lives in Supabase,
+   and every request is authorized on the server for the signed-in user.
+   ========================================================================= */
+(async function(){
+const App = window.App;
+const E = App.esc;   // HTML-escape anything that came from the database before showing it
 
-  const key = new URLSearchParams(location.search).get('branch');
-  if (!key || !A.has(A.BRANCHES, key)) { location.replace('index.html'); return; }
-  const B = A.BRANCHES[key];
-  const profile = await A.guard({ roles: ['admin', 'office'] });
+/* AUTH GUARD — real Supabase session, verified server-side. Redirects to login.html if not signed in. */
+const profile = await App.guard({ roles: ['admin','office','field'] });
+const IS_FIELD = profile.role === 'field';
+if(IS_FIELD) document.documentElement.classList.add('field-mode');
 
-  // ---- header ----
-  $('#branch-subtitle').textContent = B.office + ' \u00B7 Complaints & Field Response Log';
-  $('#branch-address').textContent = B.address;
-  const bc = $('#branch-contact'); bc.textContent = '';
-  const st = document.createElement('strong'); st.textContent = 'ileco3@gmail.com'; bc.appendChild(st);
-  if (B.email) bc.appendChild(document.createTextNode(' \u00B7 ' + B.email));
-  $('#logout-link').addEventListener('click', e => { e.preventDefault(); A.logout(); });
-  A.initNav();
+// Only "Downloaded Excel" is logged from the browser; the database logs saved complaints/responses itself.
+const logActivity = (action, details) => App.logActivity(action, details);
 
-  let rows = [], current = null;
-  const banner = $('#conn-banner');
+(function(){
+  const logoutLink = document.getElementById('logout-link');
+  if(logoutLink){
+    logoutLink.addEventListener('click', (e)=>{ e.preventDefault(); App.logout(); });
+  }
+})();
 
-  async function load() {
-    try { rows = await A.rpc('app_list_complaints', { p_office: B.office }) || []; banner.textContent = ''; }
-    catch (e) { banner.textContent = 'Could not load records. ' + e.message; }
-    renderAll();
+/* =========================================================================
+   CONFIGURATION
+   Each branch office can write to its own Google Sheet. Paste each branch's
+   deployed Apps Script Web App URL below (see SETUP.md). Leave a branch's
+   scriptUrl blank to run that branch in demo mode.
+   ========================================================================= */
+const BRANCHES = {
+  "pani-an":   { name:"Pani-an Branch Office",   email:"ileco3.pao@gmail.com", address:"" },
+  "sara":      { name:"Sara Branch Office",       email:"ileco3.sao@gmail.com", address:"Brgy. Preciosa, Sara, Iloilo" },
+  "natividad": { name:"Natividad Branch Office",  email:"ileco3.nao@gmail.com", address:"" },
+  "main":      { name:"ILECO-III Main Office",    email:"", address:"" }
+};
+const branchKeyRaw_ = new URLSearchParams(location.search).get('branch');
+const branchKey = Object.prototype.hasOwnProperty.call(BRANCHES, branchKeyRaw_) ? branchKeyRaw_ : 'pani-an';
+const BRANCH = BRANCHES[branchKey];
+// (legacy Apps Script URLs removed — this office's data now lives in the complaints table, keyed by BRANCH.name)
+
+document.title = `ILECO III · ${BRANCH.name} · Complaints & Response Log`;
+document.getElementById('branch-subtitle').textContent = `${BRANCH.name} · Complaint & Request Log`;
+document.getElementById('branch-address').textContent = BRANCH.address || BRANCH.name;
+document.getElementById('branch-contact').innerHTML =
+  `<strong>ileco3@gmail.com</strong>` + (BRANCH.email ? ` &middot; ${BRANCH.email}` : '');
+if(IS_FIELD){
+  const back = document.getElementById('change-branch');
+  back.href = 'field.html?branch=' + encodeURIComponent(branchKey);
+  back.innerHTML = '&larr; Status list';
+}
+
+const COLUMNS_SHEET = ["No","Control Number","Date Received","Time Received","Received By","Name of Complainant","Contact Number",
+  "Sitio/Barangay","Town","Type of Complaint","Description of Complaint",
+  "Account Name","Account Number","Meter Number","Serial Number","Pole Number",
+  "Acted By","Action Taken","Date Acted",
+  "Place of Origin","Departure Time","Place of Arrival","Arrival Time","Time Finished",
+  "Travel Time (min)","Work Duration (min)","Travel Time + Work Duration","Duration (min)",
+  "Duration Less Travel Time (min)"];
+const BILL_COLUMNS = ["Account Name","Account Number","Meter Number","Serial Number","Pole Number"];
+const EXCEL_COLUMNS = COLUMNS_SHEET.filter(c => !BILL_COLUMNS.includes(c));
+const COLUMNS = COLUMNS_SHEET; // kept for backward compatibility with older code below
+
+const CONTROL_PREFIX = { "pani-an":"PBO", "sara":"SBO", "natividad":"NBO", "main":"IMO" };
+
+/* ---------- Type of complaint -> Description auto-fill ---------- */
+const TYPE_DESCRIPTIONS = {
+  "SD1":"Cut-off", "SD2":"Loose", "SD3":"Sagging", "SD4":"Sparking",
+  "K1":"Damaged/Burned/Stopped", "K2":"Defective",
+  "LF1":"Vegetation, Animal Contact, Lightning, and Damage on Hardwares",
+  "LF2":"Broken Insulator", "LF3":"Transformer Loose Connection", "LF4":"Others (Private Transformer)",
+  "B1":"No bill", "B2":"For adjustment of bill", "B3":"For cancellation of bill/not used", "B4":"Sudden increase/correct reading",
+  "P1":"Leaning", "P2":"Rotten", "P3":"Burned", "P4":"Toppled",
+  "T1":"Busted transformer",
+  "LV1":"Over extended lines", "LV2":"Loose connection on primary/secondary lines", "LV3":"Others",
+  "OP1":"",
+  "O1":"Calibration", "O2":"Transfer of kWh & SD1", "O3":"Clearing/Rehab/Relocation of Down",
+  "O4":"Temporary Disco", "O5":"Correction of Account Name / Type of Consumer & Others",
+  "O6":"Change of Family Name (Change Status)", "O7":"Retirement of Transformer", "O8":"Debit/Credit Memo",
+  "O9":"Transfer of Pole", "O10":"Refund of Energy Deposit", "O11":"Change/Upgrade of SDI"
+};
+
+/* ---------- barangay coverage: loaded from barangays.js ---------- */
+const COVERAGE = window.COVERAGE || {};
+
+const BRANCH_TOWNS = COVERAGE[branchKey] || {};
+const BARANGAY_TO_TOWN = {};
+Object.keys(BRANCH_TOWNS).forEach(town=>{
+  BRANCH_TOWNS[town].forEach(brgy=>{ BARANGAY_TO_TOWN[brgy] = town; });
+});
+
+let records = [];
+
+/* ---------- time helpers ---------- */
+function toMinutes(hhmm){
+  if(!hhmm) return null;
+  const [h,m] = hhmm.split(":").map(Number);
+  return h*60+m;
+}
+function diffMinutes(startHHMM, endHHMM){
+  const a = toMinutes(startHHMM), b = toMinutes(endHHMM);
+  if(a===null || b===null) return null;
+  let d = b - a;
+  if(d < 0) d += 1440; // crossed midnight
+  return d;
+}
+function fmtTime(hhmm){
+  if(!hhmm) return "";
+  const [h,m] = hhmm.split(":").map(Number);
+  const period = h>=12 ? "PM" : "AM";
+  const h12 = ((h+11)%12)+1;
+  return `${h12}:${String(m).padStart(2,"0")} ${period}`;
+}
+function fmtDate(iso){
+  if(!iso) return "";
+  const d = new Date(iso+"T00:00:00");
+  return d.toLocaleDateString("en-US",{month:"numeric", day:"numeric", year:"numeric"});
+}
+
+
+/* ---------- Duration (min) = (Date & Time Finished) - (Date & Time Received), in minutes ----------
+   Date Finished = Date Acted. Applied to every record (all 4 offices + Overall). */
+
+/* ---------- Normalise Sheet values so every office reads the same ----------
+   Google Sheets may hand back a time as "6:20 AM", "06:20:00", a fraction of a day,
+   or an ISO stamp (1899-12-30T…Z) depending on how that Sheet's cells are formatted. */
+function normTime_(v){
+  if(v===null || v===undefined || v==='') return '';
+  const to12 = (h,mi)=>{ h=((h%24)+24)%24; return `${((h+11)%12)+1}:${String(mi).padStart(2,'0')} ${h>=12?'PM':'AM'}`; };
+  if(typeof v==='number' || /^0?\.\d+$/.test(String(v).trim())){
+    const x = Number(v);
+    if(x>=0 && x<1){ const t=Math.round(x*1440)%1440; return to12(Math.floor(t/60), t%60); }
+  }
+  const s = String(v).trim();
+  let m = s.match(/^(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?\s*(AM|PM)?$/i);
+  if(m){
+    let h = +m[1]; const p = m[3] && m[3].toUpperCase();
+    if(p==='PM' && h!==12) h+=12;
+    if(p==='AM' && h===12) h=0;
+    return to12(h, +m[2]);
+  }
+  if(/^\d{4}-\d{2}-\d{2}T/.test(s)){
+    const d = new Date(s);
+    if(isNaN(d)) return s;
+    const parts = new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Manila',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(d);
+    const h = +parts.find(p=>p.type==='hour').value, mi = +parts.find(p=>p.type==='minute').value;
+    return to12(h, mi);
+  }
+  return s;
+}
+function normDate_(v){
+  if(v===null || v===undefined || v==='') return '';
+  const s = String(v).trim();
+  if(/^\d{4}-\d{2}-\d{2}T/.test(s)){
+    const d = new Date(s);
+    if(isNaN(d) || d.getUTCFullYear()<1950) return s;
+    const parts = new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Manila',year:'numeric',month:'numeric',day:'numeric'}).formatToParts(d);
+    const g = t => parts.find(p=>p.type===t).value;
+    return `${g('month')}/${g('day')}/${g('year')}`;
+  }
+  return s;
+}
+
+
+/* ---------- Instant-load cache: show the last saved records at once, refresh in the background ---------- */
+const ROWS_CACHE_PREFIX_ = 'ileco_rows_v1:';
+function rowsCacheSet_(key, rows){
+  try{
+    const headers = [], seen = {};
+    rows.forEach(r=>Object.keys(r).forEach(k=>{ if(!seen[k]){ seen[k]=1; headers.push(k); } }));
+    const data = rows.map(r=>headers.map(h=> r[h]===undefined ? '' : r[h]));
+    sessionStorage.setItem(ROWS_CACHE_PREFIX_+key, JSON.stringify({ t:Date.now(), h:headers, d:data }));
+  }catch(e){ /* storage full or blocked - the cache is optional */ }
+}
+function rowsCacheGet_(key){
+  try{
+    const s = sessionStorage.getItem(ROWS_CACHE_PREFIX_+key);
+    if(!s) return null;
+    const o = JSON.parse(s);
+    return o.d.map(a=>{ const r = {}; o.h.forEach((h,i)=>{ r[h] = a[i]; }); return r; });
+  }catch(e){ return null; }
+}
+
+function _dtMs(dateStr, timeStr){
+  if(!dateStr || !timeStr) return null;
+  const s = String(dateStr).trim(), t = String(timeStr).trim();
+  let y,mo,d;
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m){ y=+m[1]; mo=+m[2]; d=+m[3]; }
+  else { m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if(!m) return null; mo=+m[1]; d=+m[2]; y=+m[3]; }
+  let h, mi;
+  m = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if(m){ h=+m[1]; mi=+m[2]; const p=m[3].toUpperCase(); if(p==='PM' && h!==12) h+=12; if(p==='AM' && h===12) h=0; }
+  else { m = t.match(/^(\d{1,2}):(\d{2})$/); if(!m) return null; h=+m[1]; mi=+m[2]; }
+  return Date.UTC(y, mo-1, d, h, mi);
+}
+function calcDurationMin(dateRec, timeRec, dateFin, timeFin){
+  const a = _dtMs(dateRec, timeRec), b = _dtMs(dateFin, timeFin);
+  if(a===null || b===null || b < a) return null;
+  return Math.round((b - a) / 60000);
+}
+function applyDurations(rows){
+  (rows || []).forEach(r=>{
+    ['Time Received','Departure Time','Arrival Time','Time Finished'].forEach(k=>{ if(k in r) r[k] = normTime_(r[k]); });
+    ['Date Received','Date Acted'].forEach(k=>{ if(k in r) r[k] = normDate_(r[k]); });
+    const d = calcDurationMin(r['Date Received'], r['Time Received'], r['Date Acted'], r['Time Finished']);
+    if(d === null) return;
+    r['Duration (min)'] = d;
+    const tr = r['Travel Time (min)'];
+    if(tr !== '' && tr != null && !isNaN(Number(tr))) r['Duration Less Travel Time (min)'] = d - Number(tr);
+  });
+  return rows;
+}
+
+/* ---------- element helper (must come before anything that uses it) ---------- */
+const f = id => document.getElementById(id);
+
+/* ---------- barangay dropdown: populate + auto-fill town ---------- */
+function populateBarangayDropdown(){
+  const sel = f('barangay');
+  const towns = Object.keys(BRANCH_TOWNS).sort();
+  towns.forEach(town=>{
+    const group = document.createElement('optgroup');
+    group.label = town;
+    [...BRANCH_TOWNS[town]].sort().forEach(brgy=>{
+      const opt = document.createElement('option');
+      opt.value = brgy; opt.textContent = brgy;
+      group.appendChild(opt);
+    });
+    sel.appendChild(group);
+  });
+}
+f('barangay').addEventListener('change', ()=>{
+  // Several towns share barangay names (e.g. "Poblacion"), so the town must
+  // come from the selected option's own optgroup, not a name-only lookup.
+  const sel = f('barangay');
+  const opt = sel.options[sel.selectedIndex];
+  const town = (opt && opt.parentElement && opt.parentElement.tagName === 'OPTGROUP')
+    ? opt.parentElement.label
+    : (BARANGAY_TO_TOWN[sel.value] || '');
+  f('town').value = town;
+});
+
+f('type').addEventListener('change', ()=>{
+  f('description').value = TYPE_DESCRIPTIONS[f('type').value] ?? '';
+});
+
+/* ---------- live duration preview on the field-response form ---------- */
+let currentControlNumber = null;
+let currentReceivedTimeRaw = null;
+let currentComplainant = '';
+let currentAddress = '';
+
+function recalc(){
+  const dep=f('departureTime').value, arr=f('arrivalTime').value, fin=f('finishTime').value, rec=currentReceivedTimeRaw;
+  const travel = diffMinutes(dep, arr);
+  const work = diffMinutes(arr, fin);
+  const duration = calcDurationMin(f('dateReceived').value, rec, f('dateActed').value, fin);
+  const sum = (travel!==null && work!==null) ? travel+work : null;
+  const net = (duration!==null && travel!==null) ? duration-travel : null;
+  f('calcTravel').textContent = travel ?? "–";
+  f('calcWork').textContent = work ?? "–";
+  f('calcSum').textContent = sum ?? "–";
+  f('calcDuration').textContent = duration ?? "–";
+  f('calcNet').textContent = net ?? "–";
+}
+
+/* ---------- validation: Date Acted / Time sequence rules ---------- */
+function validateFieldResponse(){
+  const dateReceived = f('dateReceived').value;     // "YYYY-MM-DD", set once a complaint is loaded
+  const dateActed = f('dateActed').value;           // "YYYY-MM-DD"
+  const dep = f('departureTime').value;             // "HH:MM"
+  const arr = f('arrivalTime').value;
+  const fin = f('finishTime').value;
+
+  if(dateReceived && dateActed && dateActed < dateReceived){
+    return "Invalid Date: Date Acted cannot be earlier than Date Received.";
+  }
+  if(dateReceived && dateActed && dateActed === dateReceived && currentReceivedTimeRaw && dep){
+    if(toMinutes(dep) < toMinutes(currentReceivedTimeRaw)){
+      return "Invalid Time: Departure Time cannot be earlier than Time Received.";
+    }
+  }
+  if(dep && arr && toMinutes(arr) <= toMinutes(dep)){
+    return "Invalid Time: Arrival Time must be later than Departure Time.";
+  }
+  if(arr && fin && toMinutes(fin) <= toMinutes(arr)){
+    return "Invalid Time: Time Finished must be later than Arrival Time.";
+  }
+  return null;
+}
+
+function showValidationError(msg){
+  const box = document.getElementById('fr-validation-error');
+  if(msg){ box.textContent = msg; box.style.display = ''; }
+  else { box.textContent = ''; box.style.display = 'none'; }
+  return msg;
+}
+
+function recalcAndValidate(){
+  recalc();
+  showValidationError(validateFieldResponse());
+}
+
+["dateActed","departureTime","arrivalTime","finishTime"].forEach(id=>{
+  f(id).addEventListener('input', recalcAndValidate);
+  f(id).addEventListener('change', recalcAndValidate);
+});
+
+/* ---------- enable/disable the field-response form ---------- */
+function setFieldResponseEnabled(enabled){
+  ['actedBy','action','dateActed','origin','arrivalPlace','departureTime','arrivalTime','finishTime'].forEach(id=>{
+    f(id).disabled = !enabled;
+  });
+  document.getElementById('fr-submit-btn').disabled = !enabled;
+}
+
+function showControlNumber(cn){
+  document.getElementById('control-number-value').textContent = cn;
+  document.getElementById('control-number-display').style.display = '';
+  f('frControl').value = cn;
+  f('frComplainant').value = currentComplainant;
+  f('frAddress').value = currentAddress;
+}
+
+/* ---------- Field response: look up an existing Control Number on Enter ---------- */
+function parseTimeTo24_(str){
+  if(!str) return null;
+  const m = normTime_(str).match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if(!m) return null;
+  let h = parseInt(m[1],10);
+  const period = m[3].toUpperCase();
+  if(period==='PM' && h!==12) h += 12;
+  if(period==='AM' && h===12) h = 0;
+  return `${String(h).padStart(2,'0')}:${m[2]}`;
+}
+
+function parseDateToISO_(str){
+  if(!str) return '';
+  const s = String(str).trim();
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(!m) return '';
+  const mm = m[1].padStart(2,'0'), dd = m[2].padStart(2,'0');
+  return `${m[3]}-${mm}-${dd}`;
+}
+
+function setComplaintFieldsEnabled(enabled){
+  ['dateReceived','timeReceived','receivedBy','complainant','contactNumber','sitio','barangay','town',
+   'type','description','acctName','acctNumber','meterNumber','serialNumber','poleNumber']
+    .forEach(id => { const el = f(id); if(el) el.disabled = !enabled; });
+  const btn = document.querySelector('#complaint-form button[type=submit]');
+  if(btn) btn.disabled = !enabled;
+}
+
+function populateComplaintFields(match){
+  f('dateReceived').value = parseDateToISO_(match['Date Received']);
+  f('timeReceived').value = parseTimeTo24_(match['Time Received']) || '';
+  f('receivedBy').value = match['Received By'] || '';
+  f('complainant').value = match['Name of Complainant'] || '';
+  f('contactNumber').value = match['Contact Number'] || '';
+
+  const combo = String(match['Sitio/Barangay'] || '');
+  const parts = combo.split(',').map(s=>s.trim());
+  const barangayName = parts.length > 1 ? parts[parts.length-1] : parts[0];
+  const sitioValue = parts.length > 1 ? parts.slice(0,-1).join(', ') : '';
+  f('sitio').value = sitioValue;
+
+  const barangaySel = f('barangay');
+  if(barangaySel && barangaySel.tagName === 'SELECT'){
+    let found = false;
+    Array.from(barangaySel.options).forEach(opt=>{
+      const inTown = opt.parentElement && opt.parentElement.tagName === 'OPTGROUP' && opt.parentElement.label === match['Town'];
+      if(!found && (opt.value === barangayName) && (inTown || !match['Town'])){
+        barangaySel.value = opt.value; found = true;
+      }
+    });
+    if(!found){ barangaySel.value = ''; }
+  } else if(barangaySel){
+    barangaySel.value = barangayName;
+  }
+  f('town').value = match['Town'] || '';
+
+  const typeSel = f('type');
+  if(typeSel) typeSel.value = match['Type of Complaint'] || '';
+  f('description').value = match['Description of Complaint'] || '';
+
+  f('acctName').value = match['Account Name'] || '';
+  f('acctNumber').value = match['Account Number'] || '';
+  f('meterNumber').value = match['Meter Number'] || '';
+  f('serialNumber').value = match['Serial Number'] || '';
+  f('poleNumber').value = match['Pole Number'] || '';
+
+  // This is an existing complaint being resumed — lock the intake fields so
+  // it can't accidentally be re-submitted as a second, duplicate complaint.
+  setComplaintFieldsEnabled(false);
+}
+
+document.getElementById('complaint-form').addEventListener('reset', ()=>{
+  setTimeout(()=> setComplaintFieldsEnabled(true), 0);
+});
+
+async function lookupControlNumber(){
+  const msg = document.getElementById('fr-lookup-msg');
+  const cn = f('frControl').value.trim();
+  if(!cn){ return; }
+  msg.style.color = 'var(--ink-soft)';
+  msg.textContent = 'Looking up…';
+
+  const findIn = list => list.find(r => String(r['Control Number']||'').trim().toUpperCase() === cn.toUpperCase());
+  let match = findIn(records);
+  if(!match){
+    try{ records = await fetchRows(); } catch(err){ /* keep whatever we already had */ }
+    match = findIn(records);
   }
 
-  // ---- complaint form ----
-  const MAXLEN = { receivedBy: 200, complainant: 200, contactNumber: 60, sitio: 150, description: 1000, acctName: 200, acctNumber: 60, meterNumber: 60, serialNumber: 60, poleNumber: 60, actedBy: 200, action: 1000, origin: 200, arrivalPlace: 200, frControl: 40 };
-  Object.keys(MAXLEN).forEach(id => { const el = $('#' + id); if (el) el.maxLength = MAXLEN[id]; });
+  if(!match){
+    msg.style.color = 'var(--red)';
+    msg.textContent = `No complaint found with Control Number "${cn}".`;
+    setFieldResponseEnabled(false);
+    f('frComplainant').value = ''; f('frAddress').value = '';
+    return;
+  }
 
-  const bar = $('#barangay'), townMap = {};
-  Object.keys(window.BARANGAYS || {}).forEach(t => window.BARANGAYS[t].forEach(b => { townMap[b] = t; const o = document.createElement('option'); o.value = b; o.textContent = b + ' (' + t + ')'; bar.appendChild(o); }));
-  bar.addEventListener('change', () => { $('#town').value = townMap[bar.value] || ''; });
+  currentControlNumber = match['Control Number'];
+  currentComplainant = match['Name of Complainant'] || '';
+  currentAddress = [match['Sitio/Barangay'], match['Town']].filter(Boolean).join(', ');
+  currentReceivedTimeRaw = parseTimeTo24_(match['Time Received']);
 
-  function defaults() { $('#dateReceived').value = A.today(); $('#timeReceived').value = A.nowHM(); $('#town').value = ''; }
-  defaults();
-  $('#complaint-form').addEventListener('reset', () => setTimeout(defaults, 0));
+  populateComplaintFields(match);
 
-  $('#complaint-form').addEventListener('submit', async e => {
+  f('actedBy').value = match['Acted By'] || '';
+  f('action').value = match['Action Taken'] || '';
+  f('dateActed').value = parseDateToISO_(match['Date Acted']);
+  f('origin').value = match['Place of Origin'] || '';
+  f('arrivalPlace').value = match['Place of Arrival'] || '';
+  f('departureTime').value = parseTimeTo24_(match['Departure Time']) || '';
+  f('arrivalTime').value = parseTimeTo24_(match['Arrival Time']) || '';
+  f('finishTime').value = parseTimeTo24_(match['Time Finished']) || '';
+
+  f('frComplainant').value = currentComplainant;
+  f('frAddress').value = currentAddress;
+  document.getElementById('control-number-value').textContent = currentControlNumber;
+  document.getElementById('control-number-display').style.display = '';
+  setFieldResponseEnabled(true);
+  recalcAndValidate();
+  msg.style.color = 'var(--green)';
+  msg.textContent = `Found — ready to fill in the field response.`;
+}
+
+f('frControl').addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter'){
     e.preventDefault();
-    const t = $('#save-toast'), btn = e.submitter || $('#complaint-form button[type=submit]');
-    const v = id => $('#' + id).value.trim();
-    if (!A.isDate(v('dateReceived')) || !A.isTime(v('timeReceived'))) { A.toast(t, 'Enter a valid date and time.', true); return; }
-    const row = {
-      office: B.office, date_received: v('dateReceived'), time_received: v('timeReceived'), received_by: v('receivedBy'),
-      name_of_complainant: v('complainant'), contact_number: v('contactNumber'),
-      sitio_barangay: [v('sitio'), v('barangay')].filter(Boolean).join(', '), town: v('town'),
-      type_of_complaint: v('type'), description: v('description'), account_name: v('acctName'), account_number: v('acctNumber'),
-      meter_number: v('meterNumber'), serial_number: v('serialNumber'), pole_number: v('poleNumber')
-    };
-    btn.disabled = true;
-    try {
-      const res = await A.rpc('app_insert_complaint', { p_row: row }), r = Array.isArray(res) ? res[0] : res;
-      if (!r || !r.ok) throw new Error((r && r.error) || 'Could not save.');
-      $('#control-number-display').style.display = 'block'; $('#control-number-value').textContent = r.control_number;
-      A.toast(t, 'Saved.');
-      await load();
-      $('#frControl').value = r.control_number; lookup(r.control_number);
-      e.target.reset();
-    } catch (ex) { A.toast(t, ex.message, true); } finally { btn.disabled = false; }
+    lookupControlNumber();
+  }
+});
+
+/* ---------- Complaint / Request Received: submit ---------- */
+document.getElementById('complaint-form').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  if(!f('barangay').value){ alert('Please select a barangay.'); return; }
+  const btn = e.target.querySelector('button[type=submit]');
+  btn.disabled = true;
+
+  currentReceivedTimeRaw = f('timeReceived').value;
+  const sitioBarangay = f('sitio').value ? `${f('sitio').value}, ${f('barangay').value}` : f('barangay').value;
+  currentComplainant = f('complainant').value;
+  currentAddress = [sitioBarangay, f('town').value].filter(Boolean).join(', ');
+
+  const data = {
+    "Date Received": fmtDate(f('dateReceived').value),
+    "Time Received": fmtTime(currentReceivedTimeRaw),
+    "Received By": f('receivedBy').value,
+    "Name of Complainant": currentComplainant,
+    "Contact Number": f('contactNumber').value,
+    "Sitio/Barangay": sitioBarangay,
+    "Town": f('town').value,
+    "Type of Complaint": f('type').value,
+    "Description of Complaint": f('description').value,
+    "Account Name": f('acctName').value,
+    "Account Number": f('acctNumber').value,
+    "Meter Number": f('meterNumber').value,
+    "Serial Number": f('serialNumber').value,
+    "Pole Number": f('poleNumber').value
+  };
+
+  try{
+    const result = await saveComplaint(data);
+    currentControlNumber = result.controlNumber;
+    // (the database records this in the Activity Log)
+    showControlNumber(currentControlNumber);
+    setFieldResponseEnabled(true);
+    recalcAndValidate();
+    document.getElementById('complaint-form').reset();
+    f('barangay').value = ""; f('town').value = "";
+    const toast = document.getElementById('save-toast');
+    toast.textContent = "Saved ✓ Control No. " + currentControlNumber;
+    setTimeout(()=> toast.textContent = "", 5000);
+    loadRecords(); // refresh Records/Summary in the background
+  } catch(err){
+    alert("Could not save the complaint: " + err.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+/* ---------- Field response: submit ---------- */
+document.getElementById('fieldresponse-form').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  if(!currentControlNumber){ alert('Save a complaint above first to get a Control Number.'); return; }
+
+  const validationMsg = validateFieldResponse();
+  if(validationMsg){
+    showValidationError(validationMsg);
+    return;
+  }
+
+  const btn = document.getElementById('fr-submit-btn');
+  btn.disabled = true;
+
+  const dep=f('departureTime').value, arr=f('arrivalTime').value, fin=f('finishTime').value, rec=currentReceivedTimeRaw;
+  const travel = diffMinutes(dep, arr);
+  const work = diffMinutes(arr, fin);
+  const duration = calcDurationMin(f('dateReceived').value, rec, f('dateActed').value, fin);
+  const sum = (travel!==null && work!==null) ? travel+work : "";
+  const net = (duration!==null && travel!==null) ? duration-travel : "";
+
+  const data = {
+    "Acted By": f('actedBy').value,
+    "Action Taken": f('action').value,
+    "Date Acted": fmtDate(f('dateActed').value),
+    "Place of Origin": f('origin').value,
+    "Departure Time": fmtTime(dep),
+    "Place of Arrival": f('arrivalPlace').value,
+    "Arrival Time": fmtTime(arr),
+    "Time Finished": fmtTime(fin),
+    "Travel Time (min)": travel ?? "",
+    "Work Duration (min)": work ?? "",
+    "Travel Time + Work Duration": sum,
+    "Duration (min)": duration ?? "",
+    "Duration Less Travel Time (min)": net
+  };
+
+  try{
+    const savedCN = currentControlNumber;
+    await saveFieldResponse(savedCN, data);
+    // (the database records this in the Activity Log)
+    // show the result instantly in Records/Summary; a real refresh follows in the background
+    const localRec = records.find(r => String(r['Control Number']||'').trim() === savedCN);
+    if(localRec){ Object.assign(localRec, data); rowsCacheSet_(branchKey, records); }
+    const toast = document.getElementById('fr-save-toast');
+    toast.textContent = "Field response saved ✓";
+    if(IS_FIELD){ setTimeout(()=>{ location.href = 'field.html?branch=' + encodeURIComponent(branchKey); }, 1400); }
+    setTimeout(()=> toast.textContent = "", 4000);
+    document.getElementById('fieldresponse-form').reset();
+    f('frControl').value = ""; f('frComplainant').value = ""; f('frAddress').value = "";
+    currentControlNumber = null; currentReceivedTimeRaw = null;
+    setFieldResponseEnabled(false);
+    document.getElementById('complaint-form').reset();
+    setComplaintFieldsEnabled(true);
+    recalcAndValidate();
+    document.getElementById('control-number-display').style.display = 'none';
+    renderFilters(records); renderTable(); renderSummary();
+    loadRecords(); // background sync with the Sheet
+  } catch(err){
+    alert("Could not save the field response: " + err.message);
+    btn.disabled = false;
+  }
+});
+
+/* ---------- persistence: Supabase (secure RPC functions — see supabase/schema.sql) ---------- */
+function isLive(){ return true; }
+
+// database row  ->  the header-keyed record the rest of this file works with
+const dbTime_ = v => v ? fmtTime(String(v).slice(0,5)) : '';
+const dbDate_ = v => v ? fmtDate(String(v).slice(0,10)) : '';
+const dbNum_  = v => (v === null || v === undefined) ? '' : v;
+function rowToRecord_(r, idx){
+  return {
+    "No": idx+1, "office": r.office, "Control Number": r.control_number,
+    "Date Received": dbDate_(r.date_received), "Time Received": dbTime_(r.time_received), "Received By": r.received_by || '',
+    "Name of Complainant": r.name_of_complainant || '', "Contact Number": r.contact_number || '',
+    "Sitio/Barangay": r.sitio_barangay || '', "Town": r.town || '',
+    "Type of Complaint": r.type_of_complaint || '', "Description of Complaint": r.description || '',
+    "Account Name": r.account_name || '', "Account Number": r.account_number || '', "Meter Number": r.meter_number || '',
+    "Serial Number": r.serial_number || '', "Pole Number": r.pole_number || '',
+    "Acted By": r.acted_by || '', "Action Taken": r.action_taken || '', "Date Acted": dbDate_(r.date_acted),
+    "Place of Origin": r.place_of_origin || '', "Departure Time": dbTime_(r.departure_time),
+    "Place of Arrival": r.place_of_arrival || '', "Arrival Time": dbTime_(r.arrival_time), "Time Finished": dbTime_(r.time_finished),
+    "Travel Time (min)": dbNum_(r.travel_time_min), "Work Duration (min)": dbNum_(r.work_duration_min),
+    "Travel Time + Work Duration": dbNum_(r.travel_plus_work_min), "Duration (min)": dbNum_(r.duration_min),
+    "Duration Less Travel Time (min)": dbNum_(r.duration_less_travel)
+  };
+}
+// header-keyed form data  ->  database columns
+const str_ = v => (v === undefined || v === null) ? '' : String(v);
+const int_ = v => (v === '' || v === undefined || v === null || isNaN(Number(v))) ? null : Math.round(Number(v));
+function complaintToDb_(d){
+  return {
+    office: BRANCH.name,
+    date_received: parseDateToISO_(d["Date Received"]) || null, time_received: parseTimeTo24_(d["Time Received"]) || null,
+    received_by: str_(d["Received By"]), name_of_complainant: str_(d["Name of Complainant"]), contact_number: str_(d["Contact Number"]),
+    sitio_barangay: str_(d["Sitio/Barangay"]), town: str_(d["Town"]), type_of_complaint: str_(d["Type of Complaint"]),
+    description: str_(d["Description of Complaint"]), account_name: str_(d["Account Name"]), account_number: str_(d["Account Number"]),
+    meter_number: str_(d["Meter Number"]), serial_number: str_(d["Serial Number"]), pole_number: str_(d["Pole Number"])
+  };
+}
+function responseToDb_(d){
+  return {
+    acted_by: str_(d["Acted By"]), action_taken: str_(d["Action Taken"]), date_acted: parseDateToISO_(d["Date Acted"]) || null,
+    place_of_origin: str_(d["Place of Origin"]), departure_time: parseTimeTo24_(d["Departure Time"]) || null,
+    place_of_arrival: str_(d["Place of Arrival"]), arrival_time: parseTimeTo24_(d["Arrival Time"]) || null,
+    time_finished: parseTimeTo24_(d["Time Finished"]) || null,
+    travel_time_min: int_(d["Travel Time (min)"]), work_duration_min: int_(d["Work Duration (min)"]),
+    travel_plus_work_min: int_(d["Travel Time + Work Duration"]), duration_min: int_(d["Duration (min)"]),
+    duration_less_travel: int_(d["Duration Less Travel Time (min)"])
+  };
+}
+
+// The Control Number is reserved and the complaint saved in ONE atomic database call,
+// so two people saving at the same moment can never collide.
+async function saveComplaint(data){
+  const res = await App.rpc('app_insert_complaint', { p_row: complaintToDb_(data) });
+  const r = Array.isArray(res) ? res[0] : res;
+  if(!r || !r.ok) throw new Error((r && r.error) || 'Could not save the complaint.');
+  return { controlNumber: r.control_number };
+}
+
+async function saveFieldResponse(controlNumber, data){
+  const res = await App.rpc('app_update_complaint', { p_office: BRANCH.name, p_control_number: controlNumber, p_row: responseToDb_(data) });
+  const r = Array.isArray(res) ? res[0] : res;
+  if(!r || !r.ok) throw new Error((r && r.error) || 'Control Number not found: ' + controlNumber);
+}
+
+async function fetchRows(){
+  const data = await App.rpc('app_list_complaints', { p_office: BRANCH.name });
+  const rows = (data || []).map(rowToRecord_);
+  const fresh = applyDurations(rows);
+  rowsCacheSet_(branchKey, fresh);
+  return fresh;
+}
+
+populateBarangayDropdown();
+
+/* ---------- action-taken pill styling ---------- */
+function pillFor(action){
+  const a = (action||"").toLowerCase();
+  if(a.includes("refus")) return "red";
+  if(a.includes("repair")) return "green";
+  if(a.includes("adjust") || a.includes("increase") || a.includes("bill")) return "blue";
+  return "amber";
+}
+
+/* ---------- rendering ---------- */
+function renderConnBanner(){
+  const el = document.getElementById('conn-banner');
+  if(isLive()){
+    el.innerHTML = `<div class="conn live">Connected to database<span></span></div>`;
+  }
+}
+
+function renderStats(target, rows){
+  const total = rows.length;
+  const sum = key => rows.reduce((s,r)=> s + (Number(r[key])||0), 0);
+  target.innerHTML = `
+    <div class="stat"><div class="num">${total}</div><div class="lbl">Total complaints &amp; requests</div></div>
+    <div class="stat"><div class="num">${sum('Travel Time (min)')}</div><div class="lbl">Total travel time (min)</div></div>
+    <div class="stat"><div class="num">${sum('Duration (min)')}</div><div class="lbl">Total duration (min)</div></div>
+    <div class="stat"><div class="num">${sum('Duration Less Travel Time (min)')}</div><div class="lbl">Total duration less travel (min)</div></div>
+  `;
+}
+
+function renderFilters(rows){
+  const townSel = document.getElementById('filter-town');
+  const typeSel = document.getElementById('filter-type');
+  const towns = [...new Set(rows.map(r=>r['Town']).filter(Boolean))].sort();
+  const types = [...new Set(rows.map(r=>r['Type of Complaint']).filter(Boolean))].sort();
+  townSel.innerHTML = '<option value="">All towns</option>' + towns.map(t=>`<option>${E(t)}</option>`).join('');
+  typeSel.innerHTML = '<option value="">All types</option>' + types.map(t=>`<option>${E(t)}</option>`).join('');
+}
+
+/* ---------- shared From/To Date range: drives Records, Summary and Excel export alike ---------- */
+function getDateRange(){
+  return {
+    from: document.getElementById('filter-from-date').value,
+    to: document.getElementById('filter-to-date').value
+  };
+}
+
+function validateDateRangeInputs(){
+  const { from, to } = getDateRange();
+  if(from && to && from > to){
+    return "Invalid date range: From Date cannot be later than To Date.";
+  }
+  if((from && !to) || (!from && to)){
+    return "Enter both a From Date and To Date to filter by date range.";
+  }
+  return null;
+}
+
+/* ---------- separate date range just for the Excel download ---------- */
+function getDownloadDateRange(fromId, toId){
+  return {
+    from: document.getElementById(fromId).value,
+    to: document.getElementById(toId).value
+  };
+}
+
+function validateDownloadDateRangeInputs(fromId, toId){
+  const { from, to } = getDownloadDateRange(fromId, toId);
+  if(from && to && from > to){
+    return "Invalid date range: From Date cannot be later than To Date.";
+  }
+  if((from && !to) || (!from && to)){
+    return "Enter both a From Date and To Date to choose what to download.";
+  }
+  return null;
+}
+
+function showDownloadDateError(errorBoxId, msg){
+  const box = document.getElementById(errorBoxId);
+  if(!box) return;
+  if(msg){ box.textContent = msg; box.style.display = ''; }
+  else { box.textContent = ''; box.style.display = 'none'; }
+}
+
+function recordInDateRange(record, from, to){
+  if(!from || !to) return true; // no complete range set — don't filter
+  const iso = parseDateToISO_(record['Date Received']);
+  if(!iso) return false;
+  return iso >= from && iso <= to;
+}
+
+function syncDateInputs(source){
+  const from = document.getElementById('filter-from-date').value;
+  const to = document.getElementById('filter-to-date').value;
+  document.getElementById('summary-from-date').value = from;
+  document.getElementById('summary-to-date').value = to;
+}
+
+function showDateError(msg){
+  const tblBox = document.getElementById('tbl-date-error');
+  const sumBox = document.getElementById('summary-date-error');
+  [tblBox, sumBox].forEach(box=>{
+    if(msg){ box.textContent = msg; box.style.display = ''; }
+    else { box.textContent = ''; box.style.display = 'none'; }
+  });
+}
+
+function applyDateRangeAndRerender(){
+  syncDateInputs();
+  const msg = validateDateRangeInputs();
+  showDateError(msg);
+  renderTable();
+  renderSummary();
+}
+
+["filter-from-date","filter-to-date","summary-from-date","summary-to-date"].forEach(id=>{
+  document.getElementById(id).addEventListener('change', ()=>{
+    // Keep the Records-tab fields as the values of record — whichever pair changed, copy it across.
+    if(id.startsWith('summary-')){
+      document.getElementById('filter-from-date').value = document.getElementById('summary-from-date').value;
+      document.getElementById('filter-to-date').value = document.getElementById('summary-to-date').value;
+    }
+    applyDateRangeAndRerender();
+  });
+});
+
+// ---------- Reusable pagination: default 10 per page, matches the style used elsewhere ----------
+function makePaginator_(barEl, pageSizeKey){
+  const state = { page: 1, pageSize: Number(sessionStorage.getItem(pageSizeKey)) || 10 };
+  return {
+    state,
+    slice(rows){
+      const total = rows.length;
+      const pages = Math.max(1, Math.ceil(total / state.pageSize));
+      if(state.page > pages) state.page = pages;
+      if(state.page < 1) state.page = 1;
+      const start = (state.page - 1) * state.pageSize;
+      const pageRows = rows.slice(start, start + state.pageSize);
+      const shownFrom = total === 0 ? 0 : start + 1;
+      const shownTo = Math.min(start + state.pageSize, total);
+      barEl.innerHTML = `
+        <label>Items per page:
+          <select class="pg-size">
+            ${[10,25,50,100].map(n=>`<option value="${n}" ${n===state.pageSize?'selected':''}>${n}</option>`).join('')}
+          </select>
+        </label>
+        <div class="pg-nav">
+          <span>${shownFrom} - ${shownTo} of ${total}</span>
+          <button class="pg-prev" ${state.page<=1?'disabled':''} aria-label="Previous page">‹</button>
+          <button class="pg-next" ${state.page>=pages?'disabled':''} aria-label="Next page">›</button>
+        </div>`;
+      return pageRows;
+    }
+  };
+}
+function wirePaginator_(barEl, paginator, rerender){
+  barEl.addEventListener('change', e=>{
+    if(!e.target.classList.contains('pg-size')) return;
+    paginator.state.pageSize = Number(e.target.value);
+    sessionStorage.setItem(barEl.dataset.pgkey, paginator.state.pageSize);
+    paginator.state.page = 1;
+    rerender();
+  });
+  barEl.addEventListener('click', e=>{
+    if(e.target.classList.contains('pg-prev')){ paginator.state.page--; rerender(); }
+    else if(e.target.classList.contains('pg-next')){ paginator.state.page++; rerender(); }
+  });
+}
+const recordsPaginator_ = makePaginator_(document.getElementById('records-pg'), 'ileco_pgsize_records');
+document.getElementById('records-pg').dataset.pgkey = 'ileco_pgsize_records';
+wirePaginator_(document.getElementById('records-pg'), recordsPaginator_, renderTable);
+
+function renderTable(){
+  const q = document.getElementById('search-box').value.toLowerCase();
+  const town = document.getElementById('filter-town').value;
+  const type = document.getElementById('filter-type').value;
+  const { from, to } = getDateRange();
+  const dateRangeOk = !validateDateRangeInputs() || (!from && !to);
+
+  const allRows = records.filter(r=>{
+    if(town && r['Town']!==town) return false;
+    if(type && r['Type of Complaint']!==type) return false;
+    if(dateRangeOk && !recordInDateRange(r, from, to)) return false;
+    if(q){
+      const hay = [r['Name of Complainant'],r['Sitio/Barangay'],r['Action Taken'],r['Received By'],(r['Time Finished'] ? 'Completed' : 'Pending')].join(' ').toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  const rows = recordsPaginator_.slice(allRows); // stats below still use the FULL filtered set, not just this page
+
+  const body = document.getElementById('records-body');
+  if(rows.length===0){
+    body.innerHTML = `<tr><td colspan="${document.querySelectorAll('#records-table thead th').length}"><div class="empty">No records match. Try clearing the search or filters.</div></td></tr>`;
+  } else {
+    body.innerHTML = rows.map(r=>`
+      <tr>
+        <td>${E(r['No'])}</td><td class="mono">${E(r['Control Number'])}</td><td><span class="pill ${r['Time Finished'] ? 'green' : 'amber'}">${r['Time Finished'] ? 'Completed' : 'Pending'}</span></td><td>${E(r['Date Received'])}</td><td>${E(r['Time Received'])}</td><td>${E(r['Received By'])}</td>
+        <td>${E(r['Name of Complainant'])}</td><td>${E(r['Contact Number'])}</td><td>${E(r['Sitio/Barangay'])}</td><td>${E(r['Town'])}</td><td>${E(r['Type of Complaint'])}</td><td>${E(r['Description of Complaint'])}</td>
+        <td>${E(r['Account Name'])}</td><td>${E(r['Account Number'])}</td><td>${E(r['Meter Number'])}</td><td>${E(r['Serial Number'])}</td><td>${E(r['Pole Number'])}</td>
+        <td>${E(r['Acted By'])}</td><td><span class="pill ${pillFor(r['Action Taken'])}">${E(r['Action Taken'])}</span></td><td>${E(r['Date Acted'])}</td>
+        <td>${E(r['Place of Origin'])}</td><td>${E(r['Departure Time'])}</td><td>${E(r['Place of Arrival'])}</td><td>${E(r['Arrival Time'])}</td><td>${E(r['Time Finished'])}</td>
+        <td class="num">${E(r['Travel Time (min)'])}</td><td class="num">${E(r['Work Duration (min)'])}</td><td class="num">${E(r['Travel Time + Work Duration'])}</td>
+        <td class="num">${E(r['Duration (min)'])}</td><td class="num">${E(r['Duration Less Travel Time (min)'])}</td>
+      </tr>`).join('');
+  }
+  renderStats(document.getElementById('stat-row'), allRows);
+}
+
+function renderSummary(){
+  const { from, to } = getDateRange();
+  const rangeOk = !validateDateRangeInputs();
+  const filtered = rangeOk ? records.filter(r => recordInDateRange(r, from, to)) : records;
+
+  renderStats(document.getElementById('summary-stats'), filtered);
+  const byTown = {}, byType = {}, byBarangay = {};
+  filtered.forEach(r=>{
+    const t = r['Town']||'—'; byTown[t] = (byTown[t]||0)+1;
+    const y = r['Type of Complaint']||'—'; byType[y] = (byType[y]||0)+1;
+    const b = extractBarangay(r) || '—'; byBarangay[b] = (byBarangay[b]||0)+1;
+  });
+  draw3DBar(byTown, document.getElementById('bar3d-town'), document.getElementById('bar3d-town-legend'));
+  draw3DBar(byType, document.getElementById('bar3d-type'), document.getElementById('bar3d-type-legend'));
+  draw3DBar(byBarangay, document.getElementById('bar3d-barangay'), document.getElementById('bar3d-barangay-legend'));
+}
+
+function extractBarangay(record){
+  const combo = String(record['Sitio/Barangay'] || '');
+  const parts = combo.split(',').map(s=>s.trim()).filter(Boolean);
+  return parts.length > 1 ? parts[parts.length-1] : (parts[0] || '');
+}
+
+const PIE_COLORS = ['#F5B72E','#3A7CA5','#2E8B57','#B7473D','#8E44AD','#D9900F','#4C7A5E','#5C6BC0','#C2185B','#607D8B','#795548','#00897B'];
+
+function shade(hex, amt){
+  const c = hex.replace('#','');
+  const num = parseInt(c,16);
+  let r=(num>>16)+amt, g=((num>>8)&0xff)+amt, b=(num&0xff)+amt;
+  r=Math.min(255,Math.max(0,r)); g=Math.min(255,Math.max(0,g)); b=Math.min(255,Math.max(0,b));
+  return '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+
+/* ---------- pseudo-3D pie (tilted disc with an extruded side wall) ---------- */
+/* ---------- pseudo-3D horizontal bar chart, with count + % detail ---------- */
+function draw3DBar(obj, svg, legendEl){
+  const entries = Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,12);
+  if(entries.length===0){
+    svg.innerHTML = '';
+    if(legendEl) legendEl.innerHTML = '<div class="empty">No data yet</div>';
+    return;
+  }
+  const total = entries.reduce((s,[,v])=>s+v,0);
+  const max = Math.max(1, ...entries.map(([,v])=>v));
+  const labelW = 118, chartW = 260, depth = 9, barH = 16, rowGap = 10;
+  const totalH = entries.length * (barH+rowGap);
+  svg.setAttribute('viewBox', `0 0 ${labelW+chartW+depth+70} ${totalH+10}`);
+  let bars = '';
+  entries.forEach(([k,v],i)=>{
+    const color = PIE_COLORS[i % PIE_COLORS.length];
+    const top = shade(color, 35), side = shade(color, -45);
+    const len = (v/max) * chartW;
+    const y = i*(barH+rowGap) + 6;
+    const x = labelW;
+    const pct = Math.round(v/total*100);
+    bars += `
+      <text x="${labelW-8}" y="${y+barH*0.72}" text-anchor="end" font-size="11" fill="#3A2E00">${E(k)}</text>
+      <polygon points="${x},${y} ${x+len},${y} ${x+len+depth},${y-depth} ${x+depth},${y-depth}" fill="${top}"></polygon>
+      <rect x="${x}" y="${y}" width="${len}" height="${barH}" fill="${color}"></rect>
+      <polygon points="${x+len},${y} ${x+len+depth},${y-depth} ${x+len+depth},${y-depth+barH} ${x+len},${y+barH}" fill="${side}"></polygon>
+      <text x="${x+len+depth+6}" y="${y+barH*0.72}" font-size="11" fill="#3A2E00">${v} (${pct}%)</text>`;
+  });
+  svg.innerHTML = bars;
+  if(legendEl) legendEl.innerHTML = entries.map(([k,v],i)=>`
+    <div style="display:flex; align-items:center; gap:7px; font-size:12.5px; margin:3px 0;">
+      <span style="width:11px; height:11px; border-radius:3px; background:${PIE_COLORS[i % PIE_COLORS.length]}; flex:none;"></span>
+      <span>${E(k)} — ${v} (${Math.round(v/total*100)}%)</span>
+    </div>`).join('');
+}
+
+async function loadRecords(){
+  renderConnBanner();
+  if(isLive() && records.length===0){
+    const cached = rowsCacheGet_(branchKey);   // show the last saved records instantly
+    if(cached && cached.length){ records = applyDurations(cached); renderFilters(records); renderTable(); renderSummary(); }
+  }
+  try{
+    records = await fetchRows();
+  }catch(err){
+    records = [];
+    document.getElementById('conn-banner').innerHTML = `<div class="conn demo">Couldn't reach the database (${E(err.message)}).</div>`;
+  }
+  renderFilters(records);
+  renderTable();
+  renderSummary();
+}
+
+document.getElementById('search-box').addEventListener('input', ()=>{ recordsPaginator_.state.page=1; renderTable(); });
+document.getElementById('filter-town').addEventListener('change', ()=>{ recordsPaginator_.state.page=1; renderTable(); });
+document.getElementById('filter-type').addEventListener('change', ()=>{ recordsPaginator_.state.page=1; renderTable(); });
+/* ---------- download records as Excel, styled like the official form ---------- */
+function recordMatchesMonth(record, year, month){
+  const raw = record['Date Received'];
+  if(!raw) return false;
+  const d = new Date(raw);
+  if(isNaN(d)) return false;
+  return d.getFullYear()===year && (d.getMonth()+1)===month;
+}
+
+const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+const LETTERHEAD_IMG_B64 = window.LETTERHEAD_IMG_B64;
+const COL_WIDTHS = [5,11,11,13,20,20,11,9,15,26,11,13,11,24,11,11,8,8,10,9,10];
+const LAST_COL_LETTER = "U"; // 21 columns, A..U
+
+function branchDisplayLabel(){
+  return branchKey === 'main' ? 'MAIN OFFICE' : BRANCH.name.toUpperCase();
+}
+
+/* ---------- rasterize an on-screen SVG chart into a PNG for embedding in Excel ---------- */
+function svgToPngBase64(svgEl, outWidth, outHeight){
+  return new Promise((resolve, reject)=>{
+    try{
+      const clone = svgEl.cloneNode(true);
+      let vbWidth = outWidth, vbHeight = outHeight;
+      const vb = svgEl.getAttribute('viewBox');
+      if(vb){ const p = vb.split(/\s+/).map(Number); vbWidth = p[2]; vbHeight = p[3]; }
+      clone.setAttribute('width', vbWidth);
+      clone.setAttribute('height', vbHeight);
+      clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+      const svgStr = new XMLSerializer().serializeToString(clone);
+      const blob = new Blob([svgStr], {type:'image/svg+xml;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = ()=>{
+        const canvas = document.createElement('canvas');
+        canvas.width = outWidth; canvas.height = outHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0,0,outWidth,outHeight);
+        ctx.drawImage(img, 0, 0, outWidth, outHeight);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL('image/png').split(',')[1]);
+      };
+      img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error('Could not render chart image')); };
+      img.src = url;
+    }catch(err){ reject(err); }
+  });
+}
+
+/* ---------- column sets for the two Excel exports ---------- */
+// Matches the original ILECO summary-of-complaints form exactly: no
+// Control Number, Contact Number, Description, or Bill Details columns.
+const BASIC_EXPORT_COLUMNS = [
+  { key:"No", label:"No" },
+  { key:"Date Received", label:"Date Received" },
+  { key:"Time Received", label:"Time Received" },
+  { key:"Received By", label:"Received By" },
+  { key:"Name of Complainant", label:"Name of Complainant" },
+  { key:"Sitio/Barangay", label:"Barangay/Sitio" },
+  { key:"Town", label:"Town" },
+  { key:"Type of Complaint", label:"Type of Complaint" },
+  { key:"Acted By", label:"Acted By" },
+  { key:"Action Taken", label:"Action Taken" },
+  { key:"Date Acted", label:"Date Acted" },
+  { key:"Place of Origin", label:"Place of Origin" },
+  { key:"Departure Time", label:"Departure Time" },
+  { key:"Place of Arrival", label:"Place of Arrival" },
+  { key:"Arrival Time", label:"Arrival Time" },
+  { key:"Time Finished", label:"Time Finished" },
+  { key:"Travel Time (min)", label:"Travel Time (min)" },
+  { key:"Work Duration (min)", label:"Work Duration (min)" },
+  { key:"Travel Time + Work Duration", label:"Travel Time + Work Duration" },
+  { key:"Duration (min)", label:"Duration (min)" },
+  { key:"Duration Less Travel Time (min)", label:"Duration Less Travel Time (min)" }
+];
+const BASIC_WIDTHS = {"No":5,"Date Received":11,"Time Received":11,"Received By":13,
+  "Name of Complainant":20,"Sitio/Barangay":20,"Town":11,"Type of Complaint":10,
+  "Acted By":15,"Action Taken":26,"Date Acted":11,"Place of Origin":13,"Departure Time":11,
+  "Place of Arrival":24,"Arrival Time":11,"Time Finished":11,"Travel Time (min)":8,"Work Duration (min)":8,
+  "Travel Time + Work Duration":10,"Duration (min)":9,"Duration Less Travel Time (min)":10};
+
+// Full export = the basic set plus Control Number, Contact Number,
+// Description, and the Bill Details columns — everything logged in the sheet.
+const FULL_EXPORT_COLUMNS = [
+  { key:"No", label:"No" },
+  { key:"Control Number", label:"Control Number" },
+  { key:"Status", label:"Status" },
+  { key:"Date Received", label:"Date Received" },
+  { key:"Time Received", label:"Time Received" },
+  { key:"Received By", label:"Received By" },
+  { key:"Name of Complainant", label:"Name of Complainant" },
+  { key:"Contact Number", label:"Contact Number" },
+  { key:"Sitio/Barangay", label:"Barangay/Sitio" },
+  { key:"Town", label:"Town" },
+  { key:"Type of Complaint", label:"Type of Complaint" },
+  { key:"Description of Complaint", label:"Description of Complaint" },
+  { key:"Account Name", label:"Account Name" },
+  { key:"Account Number", label:"Account Number" },
+  { key:"Meter Number", label:"Meter Number" },
+  { key:"Serial Number", label:"Serial Number" },
+  { key:"Pole Number", label:"Pole Number" },
+  { key:"Acted By", label:"Acted By" },
+  { key:"Action Taken", label:"Action Taken" },
+  { key:"Date Acted", label:"Date Acted" },
+  { key:"Place of Origin", label:"Place of Origin" },
+  { key:"Departure Time", label:"Departure Time" },
+  { key:"Place of Arrival", label:"Place of Arrival" },
+  { key:"Arrival Time", label:"Arrival Time" },
+  { key:"Time Finished", label:"Time Finished" },
+  { key:"Travel Time (min)", label:"Travel Time (min)" },
+  { key:"Work Duration (min)", label:"Work Duration (min)" },
+  { key:"Travel Time + Work Duration", label:"Travel Time + Work Duration" },
+  { key:"Duration (min)", label:"Duration (min)" },
+  { key:"Duration Less Travel Time (min)", label:"Duration Less Travel Time (min)" }
+];
+const FULL_WIDTHS = Object.assign({}, BASIC_WIDTHS, {
+  "Status":11,
+  "Control Number":14, "Contact Number":13, "Description of Complaint":26,
+  "Account Name":16, "Account Number":13, "Meter Number":11, "Serial Number":11, "Pole Number":10
+});
+
+async function downloadExcel(opts = {}){
+  const { fromId = 'dl-from-date', toId = 'dl-to-date', errorBoxId = 'dl-date-error',
+          columns = BASIC_EXPORT_COLUMNS, widths = BASIC_WIDTHS, filenameTag = 'Complaint_Records' } = opts;
+  if(typeof ExcelJS === 'undefined'){ alert('The Excel export library is still loading — try again in a moment.'); return; }
+
+  const rangeMsg = validateDownloadDateRangeInputs(fromId, toId);
+  if(rangeMsg){ showDownloadDateError(errorBoxId, rangeMsg); alert(rangeMsg); return; }
+  showDownloadDateError(errorBoxId, null);
+  const { from, to } = getDownloadDateRange(fromId, toId);
+  const hasRange = !!(from && to);
+  const rows = hasRange ? records.filter(r => recordInDateRange(r, from, to)) : records.slice();
+
+  const wb = new ExcelJS.Workbook();
+
+  /* ===================== Sheet 1 — Filtered Records ===================== */
+  const EXPORT_COLUMNS = columns;
+  const colCount = EXPORT_COLUMNS.length;
+
+  const ws = wb.addWorksheet('Filtered Records');
+  const WIDTHS = widths;
+  EXPORT_COLUMNS.forEach((c,i)=>{ ws.getColumn(i+1).width = WIDTHS[c.key] || 14; });
+
+  const BLUE = 'FF1B3B6F';
+  const RED = 'FFCC0000';
+  const BORDER = { style:'thin', color:{argb:'FF000000'} };
+  const thinBox = { top:BORDER, left:BORDER, bottom:BORDER, right:BORDER };
+
+  const mergeCentered = (r1,c1,r2,c2,text,opts={})=>{
+    ws.mergeCells(r1,c1,r2,c2);
+    const cell = ws.getCell(r1,c1);
+    cell.value = text;
+    cell.alignment = { horizontal: opts.align||'center', vertical:'middle', wrapText:true };
+    cell.font = { bold: opts.bold!==false, size: opts.size||11, color:{argb: opts.color||'FF000000'}, italic: !!opts.italic };
+    if(opts.fill) cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:opts.fill} };
+    return cell;
+  };
+
+  let r = 1;
+
+  // ---- real letterhead image (embedded logo), spanning the full table width ----
+  const bannerStartRow = r;
+  const totalColUnits = Object.values(WIDTHS).reduce((a,b)=>a+b,0) / Object.values(WIDTHS).length * colCount;
+  const estTableWidthPx = Math.round(totalColUnits*7 + colCount*5);
+  const bannerHeightPx = Math.round(estTableWidthPx * (201/1467));
+  const bannerHeightPt = Math.round(bannerHeightPx / 1.3333);
+
+  const logoId = wb.addImage({ base64: LETTERHEAD_IMG_B64, extension: 'png' });
+  ws.addImage(logoId, {
+    tl: { col: 0, row: bannerStartRow - 1 },
+    br: { col: colCount, row: bannerStartRow }
+  });
+  ws.getRow(bannerStartRow).height = bannerHeightPt;
+  r += 2;
+
+  // ---- effectivity / rev / document code ----
+  const metaRow = r;
+  ws.getCell(metaRow,1).value = 'Effectivity Date:'; ws.getCell(metaRow,1).font = { bold:true, size:9 };
+  ws.mergeCells(metaRow,2,metaRow,5);
+  ws.getCell(metaRow,2).value = 'September 01, 2026'; ws.getCell(metaRow,2).font = { size:9 };
+  const revLabelStart = Math.round(colCount*0.43), revLabelEnd = revLabelStart+1, revValueCol = revLabelEnd+1;
+  ws.mergeCells(metaRow,revLabelStart,metaRow,revLabelEnd);
+  ws.getCell(metaRow,revLabelStart).value = 'Rev. No.:'; ws.getCell(metaRow,revLabelStart).font = { bold:true, size:9 };
+  ws.getCell(metaRow,revValueCol).value = '05'; ws.getCell(metaRow,revValueCol).font = { size:9 };
+  const docLabelStart = Math.round(colCount*0.74), docLabelEnd = docLabelStart+1, docValueStart = docLabelEnd+1;
+  ws.mergeCells(metaRow,docLabelStart,metaRow,docLabelEnd);
+  ws.getCell(metaRow,docLabelStart).value = 'Document Code:'; ws.getCell(metaRow,docLabelStart).font = { bold:true, size:9 };
+  ws.mergeCells(metaRow,docValueStart,metaRow,colCount);
+  ws.getCell(metaRow,docValueStart).value = 'FO-AO-56'; ws.getCell(metaRow,docValueStart).font = { bold:true, size:9 };
+  r += 2;
+
+  // ---- branch identification ----
+  mergeCentered(r,1,r,colCount,'ILOILO III ELECTRIC COOPERATIVE INC.', {size:11}); r++;
+  mergeCentered(r,1,r,colCount,branchDisplayLabel(), {size:11}); r += 2;
+
+  // ---- summary title + red totals block (right side) ----
+  const sum = key => rows.reduce((s,x)=> s + (Number(x[key])||0), 0);
+  const totals = [
+    ['TOTAL COMPLAINTS:', rows.length],
+    ['TOTAL TRAVEL TIME(MIN):', sum('Travel Time (min)')],
+    ['TOTAL DURATION(MIN):', sum('Duration (min)')],
+    ['TOTAL DURATION LESS TRAVEL TIME(MIN):', sum('Duration Less Travel Time (min)')]
+  ];
+  const titleEnd = colCount - 7, labelStart = titleEnd+1, labelEnd = labelStart+2, valueStart = labelEnd+1;
+  const MONTH_ABBR = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  let rangeLabel = '';
+  if(hasRange){
+    const sameMonth = from.slice(0,7) === to.slice(0,7);
+    if(sameMonth){
+      const [yy,mm] = from.split('-');
+      rangeLabel = `${MONTH_ABBR[parseInt(mm,10)-1]}-${yy.slice(2)}`;
+    } else {
+      rangeLabel = `${from} to ${to}`;
+    }
+  }
+
+  mergeCentered(r,1,r,titleEnd,'SUMMARY OF COMPLAINTS', {size:12});
+  ws.mergeCells(r,labelStart,r,labelEnd); const l0=ws.getCell(r,labelStart); l0.value=totals[0][0];
+  l0.alignment={horizontal:'right',vertical:'middle'}; l0.font={bold:true,color:{argb:RED},size:9};
+  ws.mergeCells(r,valueStart,r,colCount); const v0=ws.getCell(r,valueStart); v0.value=totals[0][1];
+  v0.alignment={horizontal:'right',vertical:'middle'}; v0.font={bold:true,color:{argb:RED},size:9};
+  r++;
+
+  mergeCentered(r,1,r,titleEnd, rangeLabel, {size:11});
+  ws.mergeCells(r,labelStart,r,labelEnd); const l1=ws.getCell(r,labelStart); l1.value=totals[1][0];
+  l1.alignment={horizontal:'right',vertical:'middle'}; l1.font={bold:true,color:{argb:RED},size:9};
+  ws.mergeCells(r,valueStart,r,colCount); const v1=ws.getCell(r,valueStart); v1.value=totals[1][1];
+  v1.alignment={horizontal:'right',vertical:'middle'}; v1.font={bold:true,color:{argb:RED},size:9};
+  r++;
+
+  for(let i=2;i<totals.length;i++){
+    ws.mergeCells(r,labelStart,r,labelEnd); const lbl=ws.getCell(r,labelStart); lbl.value=totals[i][0];
+    lbl.alignment={horizontal:'right',vertical:'middle'}; lbl.font={bold:true,color:{argb:RED},size:9};
+    ws.mergeCells(r,valueStart,r,colCount); const val=ws.getCell(r,valueStart); val.value=totals[i][1];
+    val.alignment={horizontal:'right',vertical:'middle'}; val.font={bold:true,color:{argb:RED},size:9};
+    r++;
+  }
+  r++;
+
+  // ---- table header ----
+  const headerRow = r;
+  EXPORT_COLUMNS.forEach((c,i)=>{
+    const cell = ws.getCell(headerRow, i+1);
+    cell.value = c.label;
+    cell.font = { bold:true, size:9 };
+    cell.alignment = { horizontal:'center', vertical:'middle', wrapText:true };
+    cell.border = thinBox;
+  });
+  ws.getRow(headerRow).height = 30;
+  r++;
+
+  // ---- data rows ----
+  const durationStart = colCount - 5;
+  rows.forEach(rec=>{
+    EXPORT_COLUMNS.forEach((c,i)=>{
+      const cell = ws.getCell(r, i+1);
+      cell.value = c.key==='Status' ? (rec['Time Finished'] ? 'Completed' : 'Pending') : (rec[c.key] ?? '');
+      cell.font = { size:9 };
+      cell.alignment = { vertical:'middle', horizontal: (i>=durationStart ? 'right':'left') };
+      cell.border = thinBox;
+    });
+    r++;
+  });
+  if(rows.length===0){
+    EXPORT_COLUMNS.forEach((c,i)=>{ ws.getCell(r,i+1).border = thinBox; });
+    r++;
+  }
+  r += 2;
+
+  // ---- signature block (titles only, no personal names) ----
+  const sigCols = [1, Math.round(colCount*0.4)+1, Math.round(colCount*0.72)+1];
+  const sigLabelRow = r;
+  ws.getCell(sigLabelRow,sigCols[0]).value='PREPARED BY:'; ws.getCell(sigLabelRow,sigCols[0]).font={bold:true,size:10};
+  ws.getCell(sigLabelRow,sigCols[1]).value='REVIEWED BY:'; ws.getCell(sigLabelRow,sigCols[1]).font={bold:true,size:10};
+  ws.getCell(sigLabelRow,sigCols[2]).value='NOTED BY:'; ws.getCell(sigLabelRow,sigCols[2]).font={bold:true,size:10};
+  r++;
+  const sigLineRow = r;
+  [sigCols[0],sigCols[1],sigCols[2]].forEach((c,idx)=>{
+    const end = idx<2 ? sigCols[idx+1]-2 : colCount-1;
+    ws.mergeCells(sigLineRow,c,sigLineRow,Math.max(c,end));
+    ws.getCell(sigLineRow,c).border = { bottom: BORDER };
+  });
+  ws.getRow(sigLineRow).height = 22;
+  r++;
+  const sigTitleRow = r;
+  ws.getCell(sigTitleRow,sigCols[0]).value='MCO Welfare Desk Coordinator'; ws.getCell(sigTitleRow,sigCols[0]).font={size:10};
+  ws.getCell(sigTitleRow,sigCols[1]).value='Branch Operations Services Chief'; ws.getCell(sigTitleRow,sigCols[1]).font={size:10};
+  ws.getCell(sigTitleRow,sigCols[2]).value='AOSD Manager'; ws.getCell(sigTitleRow,sigCols[2]).font={size:10};
+
+  /* ===================== Sheet 2 — Summary ===================== */
+  // Styled to match the app itself: navy header bar, amber accents,
+  // stat tiles up top (same four totals as the on-screen Summary tab),
+  // then a colored, bordered table per category.
+  const ws2 = wb.addWorksheet('Summary');
+  const NAVY = 'FF122236';
+  const AMBER = 'FFFBC94C';
+  const AMBER_DEEP = 'FFE8A423';
+  const PAPER = 'FFFFFDF5';
+  const INK_SOFT = 'FF5C5C5C';
+  ws2.getColumn(1).width = 30; ws2.getColumn(2).width = 12;
+  ws2.getColumn(3).width = 4;
+  ws2.getColumn(4).width = 22; ws2.getColumn(5).width = 12;
+
+  let r2 = 1;
+  ws2.mergeCells(r2,1,r2,5);
+  const titleCell = ws2.getCell(r2,1);
+  titleCell.value = `ILOILO III ELECTRIC COOPERATIVE, INC. — ${branchDisplayLabel()}`;
+  titleCell.font = { bold:true, size:13, color:{argb:'FFFFFFFF'} };
+  titleCell.alignment = { vertical:'middle', horizontal:'center' };
+  titleCell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:NAVY} };
+  ws2.getRow(r2).height = 24;
+  r2++;
+  ws2.mergeCells(r2,1,r2,5);
+  const subCell = ws2.getCell(r2,1);
+  subCell.value = `Summary — ${rangeLabel || 'All records'}`;
+  subCell.font = { bold:true, size:11, color:{argb:'FF3A2E00'} };
+  subCell.alignment = { vertical:'middle', horizontal:'center' };
+  subCell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:AMBER} };
+  ws2.getRow(r2).height = 20;
+  r2 += 2;
+
+  // ---- stat tiles: same four totals shown on the live Summary tab ----
+  const sumKey = key => rows.reduce((s,x)=> s + (Number(x[key])||0), 0);
+  const stats = [
+    ['Total complaints & requests', rows.length],
+    ['Total travel time (min)', sumKey('Travel Time (min)')],
+    ['Total duration (min)', sumKey('Duration (min)')],
+    ['Total duration less travel (min)', sumKey('Duration Less Travel Time (min)')]
+  ];
+  const statsRow = r2;
+  stats.forEach((s,i)=>{
+    const c = i+1;
+    const numCell = ws2.getCell(statsRow,c);
+    numCell.value = s[1];
+    numCell.font = { bold:true, size:16, color:{argb:'FF1B1B1B'} };
+    numCell.alignment = { horizontal:'center', vertical:'middle' };
+    numCell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:PAPER} };
+    numCell.border = { top:{style:'thin',color:{argb:AMBER_DEEP}}, bottom:{style:'thin',color:{argb:AMBER_DEEP}}, left:{style:'thin',color:{argb:AMBER_DEEP}}, right:{style:'thin',color:{argb:AMBER_DEEP}} };
+  });
+  ws2.getRow(statsRow).height = 26;
+  r2++;
+  stats.forEach((s,i)=>{
+    const c = i+1;
+    const lblCell = ws2.getCell(r2,c);
+    lblCell.value = s[0];
+    lblCell.font = { size:8.5, color:{argb:INK_SOFT} };
+    lblCell.alignment = { horizontal:'center', vertical:'middle', wrapText:true };
+    lblCell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:PAPER} };
+    lblCell.border = { bottom:{style:'thin',color:{argb:AMBER_DEEP}}, left:{style:'thin',color:{argb:AMBER_DEEP}}, right:{style:'thin',color:{argb:AMBER_DEEP}} };
+  });
+  ws2.getRow(r2).height = 26;
+  r2 += 3;
+
+  const byTown = {}, byType = {}, byBarangay = {};
+  rows.forEach(rec=>{
+    const t = rec['Town']||'—'; byTown[t]=(byTown[t]||0)+1;
+    const y = rec['Type of Complaint']||'—'; byType[y]=(byType[y]||0)+1;
+    const b = extractBarangay(rec) || '—'; byBarangay[b]=(byBarangay[b]||0)+1;
   });
 
-  // ---- field response ----
-  const FR = ['actedBy', 'action', 'dateActed', 'origin', 'arrivalPlace', 'departureTime', 'arrivalTime', 'finishTime'];
-  const setEnabled = on => { FR.forEach(id => { $('#' + id).disabled = !on; }); $('#fr-submit-btn').disabled = !on; };
-  const lookMsg = (m, ok) => { const el = $('#fr-lookup-msg'); el.textContent = m; el.className = ok ? 'ok' : 'err'; };
-
-  function calc() {
-    if (!current) return null;
-    const d = A.computeDurations({ dateReceived: current.date_received, timeReceived: current.time_received, dateActed: $('#dateActed').value,
-      departure: $('#departureTime').value, arrival: $('#arrivalTime').value, finished: $('#finishTime').value });
-    const f = x => (x == null ? '\u2013' : x);
-    $('#calcTravel').textContent = f(d.travel); $('#calcWork').textContent = f(d.work); $('#calcSum').textContent = f(d.sum);
-    $('#calcDuration').textContent = f(d.duration); $('#calcNet').textContent = f(d.net);
-    return d;
-  }
-  ['dateActed', 'departureTime', 'arrivalTime', 'finishTime'].forEach(id => $('#' + id).addEventListener('input', calc));
-
-  async function lookup(cn) {
-    cn = String(cn || '').trim().toUpperCase();
-    if (!cn) return;
-    let rec = rows.find(r => r.control_number === cn);
-    if (!rec) { await load(); rec = rows.find(r => r.control_number === cn); }
-    if (!rec) { current = null; setEnabled(false); lookMsg('No record with that Control Number in ' + B.office + '.', false); return; }
-    current = rec; lookMsg('Record found.', true); setEnabled(true);
-    $('#frControl').value = rec.control_number;
-    $('#frComplainant').value = rec.name_of_complainant || ''; $('#frAddress').value = [rec.sitio_barangay, rec.town].filter(Boolean).join(', ');
-    $('#actedBy').value = rec.acted_by || ''; $('#action').value = rec.action_taken || ''; $('#dateActed').value = rec.date_acted || A.today();
-    $('#origin').value = rec.place_of_origin || ''; $('#arrivalPlace').value = rec.place_of_arrival || '';
-    $('#departureTime').value = R.hm(rec.departure_time); $('#arrivalTime').value = R.hm(rec.arrival_time); $('#finishTime').value = R.hm(rec.time_finished);
-    calc();
-  }
-  $('#frControl').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); lookup(e.target.value); } });
-  setEnabled(false);
-
-  $('#fieldresponse-form').addEventListener('submit', async e => {
-    e.preventDefault();
-    const err = $('#fr-validation-error'), t = $('#fr-save-toast'); err.style.display = 'none';
-    const fail = m => { err.textContent = m; err.style.display = 'block'; };
-    if (!current) return fail('Look up a Control Number first.');
-    const v = id => $('#' + id).value.trim();
-    if (!v('actedBy') || !v('action') || !v('dateActed')) return fail('Acted by, Action taken and Date acted are required.');
-    const times = [v('departureTime'), v('arrivalTime'), v('finishTime')], given = times.filter(Boolean).length;
-    if (given && given < 3) return fail('Enter all three times (departure, arrival, finished) or leave them all blank.');
-    const d = calc();
-    if (given === 3 && d.duration == null) return fail('Finish time cannot be before the time the complaint was received.');
-    const row = Object.assign({}, current, {
-      acted_by: v('actedBy'), action_taken: v('action'), date_acted: v('dateActed'), place_of_origin: v('origin'), place_of_arrival: v('arrivalPlace'),
-      departure_time: times[0] || null, arrival_time: times[1] || null, time_finished: times[2] || null,
-      travel_time_min: d.travel, work_duration_min: d.work, travel_plus_work_min: d.sum, duration_min: d.duration, duration_less_travel: d.net
+  const writeTable = (title, obj) => {
+    ws2.mergeCells(r2,1,r2,2);
+    const head = ws2.getCell(r2,1);
+    head.value = title;
+    head.font = { bold:true, size:11, color:{argb:'FFFFFFFF'} };
+    head.alignment = { vertical:'middle' };
+    head.fill = { type:'pattern', pattern:'solid', fgColor:{argb:NAVY} };
+    ws2.getRow(r2).height = 20;
+    r2++;
+    const colHead1 = ws2.getCell(r2,1), colHead2 = ws2.getCell(r2,2);
+    colHead1.value = 'Category'; colHead2.value = 'Count';
+    [colHead1,colHead2].forEach(c=>{
+      c.font = { bold:true, size:9.5, color:{argb:'FF3A2E00'} };
+      c.fill = { type:'pattern', pattern:'solid', fgColor:{argb:AMBER} };
+      c.alignment = { horizontal: c===colHead2 ? 'right':'left', vertical:'middle' };
     });
-    $('#fr-submit-btn').disabled = true;
-    try {
-      const res = await A.rpc('app_update_complaint', { p_office: B.office, p_control_number: current.control_number, p_row: row }), r = Array.isArray(res) ? res[0] : res;
-      if (!r || !r.ok) throw new Error((r && r.error) || 'Could not save.');
-      A.toast(t, 'Field response saved.'); await load(); lookup(current.control_number);
-    } catch (ex) { A.toast(t, ex.message, true); } finally { $('#fr-submit-btn').disabled = !current; }
+    r2++;
+    const entries = Object.entries(obj).sort((a,b)=>b[1]-a[1]);
+    if(entries.length===0){
+      ws2.getCell(r2,1).value = 'No data yet';
+      ws2.getCell(r2,1).font = { italic:true, size:9.5, color:{argb:INK_SOFT} };
+      r2++;
+    }
+    entries.forEach(([k,v],i)=>{
+      const rowFill = i % 2 === 0 ? PAPER : 'FFFFFFFF';
+      const kCell = ws2.getCell(r2,1), vCell = ws2.getCell(r2,2);
+      kCell.value = k; vCell.value = v;
+      [kCell,vCell].forEach(c=>{
+        c.font = { size:9.5 };
+        c.fill = { type:'pattern', pattern:'solid', fgColor:{argb:rowFill} };
+        c.border = { bottom:{style:'hair',color:{argb:'FFE0DCC8'}} };
+      });
+      vCell.alignment = { horizontal:'right' };
+      r2++;
+    });
+    r2 += 2;
+  };
+  writeTable('Complaints & Requests by Town', byTown);
+  writeTable('Complaints & Requests by Type', byType);
+  writeTable('Complaints & Requests by Barangay', byBarangay);
+
+  /* ===================== Sheet 3 — Charts ===================== */
+  // 3D bar graphs only (no pie), built off-screen straight from this
+  // export's own `rows` — so they always match the exact date range just
+  // downloaded, regardless of whatever range the live Summary tab shows.
+  const ws3 = wb.addWorksheet('Charts');
+  ws3.getColumn(1).width = 4;
+  ws3.getCell(1,1).value = `Charts — ${rangeLabel || 'All records'}`;
+  ws3.getCell(1,1).font = { bold:true, size:13 };
+  ws3.getCell(3,1).value = 'Complaints & Requests by Town';
+  ws3.getCell(3,1).font = { bold:true, size:11 };
+  ws3.getCell(18,1).value = 'Complaints & Requests by Type';
+  ws3.getCell(18,1).font = { bold:true, size:11 };
+  ws3.getCell(33,1).value = 'Complaints & Requests by Barangay';
+  ws3.getCell(33,1).font = { bold:true, size:11 };
+
+  const detachedSvg = viewBox => {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('viewBox', viewBox);
+    return svg;
+  };
+  const addBarChart = async (obj, row) => {
+    const svg = detachedSvg('0 0 480 220');
+    draw3DBar(obj, svg, null);
+    const b64 = await svgToPngBase64(svg, 700, 340);
+    const imgId = wb.addImage({ base64: b64, extension: 'png' });
+    ws3.addImage(imgId, { tl:{col:0,row}, ext:{width:560,height:270} });
+  };
+
+  try{
+    await addBarChart(byTown, 3);
+    await addBarChart(byType, 18);
+    await addBarChart(byBarangay, 33);
+  }catch(chartErr){
+    ws3.getCell(48,1).value = 'Charts could not be rendered as images in this browser: ' + chartErr.message;
+  }
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const branchSlug = BRANCH.name.replace(/[^a-z0-9]+/gi, '-');
+  const rangeSlug = hasRange ? `${from}_to_${to}` : 'all-records';
+  const filename = `ILECO3-${branchSlug}-${filenameTag}_${rangeSlug}.xlsx`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  await logActivity('Downloaded Excel', `${BRANCH.name} — ${filenameTag} — ${hasRange ? from+' to '+to : 'all records'} (${rows.length} rows)`);
+}
+
+document.getElementById('download-btn').addEventListener('click', ()=>downloadExcel({
+  fromId: 'dl-from-date', toId: 'dl-to-date', errorBoxId: 'dl-date-error',
+  columns: BASIC_EXPORT_COLUMNS, widths: BASIC_WIDTHS, filenameTag: 'Complaint_Records'
+}));
+document.getElementById('download-all-btn').addEventListener('click', ()=>downloadExcel({
+  fromId: 'full-from-date', toId: 'full-to-date', errorBoxId: 'full-date-error',
+  columns: FULL_EXPORT_COLUMNS, widths: FULL_WIDTHS, filenameTag: 'Complaint_Records_Full'
+}));
+document.getElementById('summary-download-btn').addEventListener('click', ()=>downloadExcel({
+  fromId: 'summary-dl-from-date', toId: 'summary-dl-to-date', errorBoxId: 'summary-dl-date-error',
+  columns: BASIC_EXPORT_COLUMNS, widths: BASIC_WIDTHS, filenameTag: 'Complaint_Records'
+}));
+document.getElementById('summary-download-all-btn').addEventListener('click', ()=>downloadExcel({
+  fromId: 'summary-full-from-date', toId: 'summary-full-to-date', errorBoxId: 'summary-full-date-error',
+  columns: FULL_EXPORT_COLUMNS, widths: FULL_WIDTHS, filenameTag: 'Complaint_Records_Full'
+}));
+
+document.getElementById('refresh-btn').addEventListener('click', loadRecords);
+
+/* ---------- nav ---------- */
+document.querySelectorAll('.nav-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('view-'+btn.dataset.view).classList.add('active');
+    if(btn.dataset.view!=='log') loadRecords();
   });
+});
 
-  // ---- records ----
-  function filtered() {
-    const q = $('#search-box').value.trim().toLowerCase(), town = $('#filter-town').value, type = $('#filter-type').value;
-    const f = $('#filter-from-date').value, to = $('#filter-to-date').value, e = $('#tbl-date-error');
-    const re = A.rangeError(f, to); e.textContent = re || ''; e.style.display = re ? 'block' : 'none';
-    return rows.filter(r => (!town || r.town === town) && (!type || r.type_of_complaint === type) && (re || R.inRange(r, f, to)) &&
-      (!q || [r.control_number, r.name_of_complainant, r.sitio_barangay, r.action_taken, r.description, r.town].join(' ').toLowerCase().includes(q)));
-  }
-  function fillSelect(sel, vals, all) { const keep = sel.value; sel.length = 1; vals.forEach(x => { const o = document.createElement('option'); o.value = x; o.textContent = x; sel.appendChild(o); }); sel.value = vals.includes(keep) ? keep : ''; }
-  function stats(box, list) {
-    const done = list.filter(r => r.date_acted).length, durs = list.map(r => r.duration_min).filter(x => x != null);
-    const avg = durs.length ? Math.round(durs.reduce((a, b) => a + b, 0) / durs.length) : '\u2013';
-    box.textContent = ''; [['Total', list.length], ['Completed', done], ['Pending', list.length - done], ['Avg duration (min)', avg]].forEach(([k, v]) => box.appendChild(A.statBox(k, v)));
-  }
-  function renderRecords() { const l = filtered().slice().reverse(); stats($('#stat-row'), l); R.render($('#records-body'), l); }
-
-  // ---- summary ----
-  const PALETTE = ['#F2A900', '#12202E', '#1E7A46', '#B3261E', '#3A6EA5', '#8A5A00', '#7A4E9B', '#5B6672'];
-  function bar3d(svgId, legendId, list, field) {
-    const svg = $('#' + svgId), leg = $('#' + legendId), NS = 'http://www.w3.org/2000/svg';
-    svg.textContent = ''; leg.textContent = ''; leg.className = 'legend';
-    const c = {}; list.forEach(r => { const k = r[field] || '(blank)'; c[k] = (c[k] || 0) + 1; });
-    const ent = Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 8);
-    if (!ent.length) { const t = document.createElementNS(NS, 'text'); t.setAttribute('x', 20); t.setAttribute('y', 40); t.textContent = 'No data'; svg.appendChild(t); return; }
-    const max = ent[0][1], w = 480 / ent.length, bw = Math.min(40, w * .55), d = 8, base = 180;
-    const mk = (tag, at) => { const el = document.createElementNS(NS, tag); Object.keys(at).forEach(k => el.setAttribute(k, at[k])); svg.appendChild(el); return el; };
-    ent.forEach(([name, n], i) => {
-      const x = i * w + (w - bw) / 2, h = Math.max(4, (n / max) * 130), y = base - h, col = PALETTE[i % PALETTE.length];
-      mk('rect', { x, y, width: bw, height: h, fill: col });
-      mk('polygon', { points: [x, y, x + d, y - d, x + bw + d, y - d, x + bw, y].join(' '), fill: col, opacity: .75 });
-      mk('polygon', { points: [x + bw, y, x + bw + d, y - d, x + bw + d, base - d, x + bw, base].join(' '), fill: col, opacity: .55 });
-      mk('text', { x: x + bw / 2, y: y - d - 3, 'text-anchor': 'middle' }).textContent = n;
-      mk('text', { x: x + bw / 2, y: base + 14, 'text-anchor': 'middle' }).textContent = name.length > 9 ? name.slice(0, 8) + '\u2026' : name;
-      const s = document.createElement('span'), ch = document.createElement('i'); ch.style.background = col; s.appendChild(ch); s.appendChild(document.createTextNode(name + ' (' + n + ')')); leg.appendChild(s);
+/* ---------- init ---------- */
+(function init(){
+  const now = new Date();
+  f('dateReceived').value = now.toISOString().slice(0,10);
+  f('timeReceived').value = now.toTimeString().slice(0,5);
+  if(f('download-month')) f('download-month').value = now.toISOString().slice(0,7);
+  recalc();
+  loadRecords();
+  const cnParam = new URLSearchParams(location.search).get('cn');
+  if(cnParam){
+    f('frControl').value = cnParam;
+    lookupControlNumber().then(()=>{
+      const el = document.getElementById('fieldresponse-form');
+      if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
     });
   }
-  function summaryList() {
-    const f = $('#summary-from-date').value, t = $('#summary-to-date').value, e = $('#summary-date-error');
-    const re = A.rangeError(f, t); e.textContent = re || ''; e.style.display = re ? 'block' : 'none';
-    return re ? rows : rows.filter(r => R.inRange(r, f, t));
-  }
-  function renderSummary() {
-    const l = summaryList(); stats($('#summary-stats'), l);
-    bar3d('bar3d-town', 'bar3d-town-legend', l, 'town'); bar3d('bar3d-type', 'bar3d-type-legend', l, 'type_of_complaint');
-    bar3d('bar3d-barangay', 'bar3d-barangay-legend', l.map(r => ({ b: (r.sitio_barangay || '').split(',').pop().trim() })), 'b');
-  }
-  function renderAll() {
-    fillSelect($('#filter-town'), [...new Set(rows.map(r => r.town).filter(Boolean))].sort());
-    fillSelect($('#filter-type'), [...new Set(rows.map(r => r.type_of_complaint).filter(Boolean))].sort());
-    renderRecords(); renderSummary();
-  }
-  ['search-box', 'filter-town', 'filter-type', 'filter-from-date', 'filter-to-date'].forEach(id => $('#' + id).addEventListener('input', renderRecords));
-  ['summary-from-date', 'summary-to-date'].forEach(id => $('#' + id).addEventListener('input', renderSummary));
-  $('#refresh-btn').addEventListener('click', load);
+})();
 
-  // ---- downloads ----
-  function hook(btnId, fromId, toId, errId, full) {
-    $('#' + btnId).addEventListener('click', async ev => {
-      const f = $('#' + fromId).value, t = $('#' + toId).value, e = $('#' + errId), b = ev.currentTarget;
-      const re = A.rangeError(f, t); e.textContent = re || ''; e.style.display = re ? 'block' : 'none'; if (re) return;
-      const list = rows.filter(r => R.inRange(r, f, t));
-      if (!list.length) { e.textContent = 'No records in that date range.'; e.style.display = 'block'; return; }
-      b.disabled = true;
-      try {
-        await R.exportExcel({ rows: list, full, filename: 'ILECO3_' + B.office + (full ? '_full' : '') + '_' + (f || 'start') + '_to_' + (t || 'latest') });
-        A.logActivity('Downloaded Excel', B.office + (full ? ' (full data)' : '') + ' \u00B7 ' + (f || 'start') + ' to ' + (t || 'latest') + ' \u00B7 ' + list.length + ' rows');
-      } catch (x) { e.textContent = x.message; e.style.display = 'block'; } finally { b.disabled = false; }
-    });
-  }
-  hook('download-btn', 'dl-from-date', 'dl-to-date', 'dl-date-error', false);
-  hook('download-all-btn', 'full-from-date', 'full-to-date', 'full-date-error', true);
-  hook('summary-download-btn', 'summary-dl-from-date', 'summary-dl-to-date', 'summary-dl-date-error', false);
-  hook('summary-download-all-btn', 'summary-full-from-date', 'summary-full-to-date', 'summary-full-date-error', true);
-
-  load();
 })();
