@@ -1,10 +1,39 @@
 /* office picker */
 body{display:flex;flex-direction:column}
 .hero{
-    max-width:900px; margin:0 auto; padding:22px 40px 0; text-align:left;
-  }
-  .hero h1{font-size:clamp(24px,4vw,38px); line-height:1.1; white-space:nowrap; color:var(--ink);}
-  .hero p{margin:12px 0 0; font-size:14.5px; line-height:1.5; color:rgba(27,27,27,.72); max-width:56ch;}
+  max-width:900px; margin:0 auto; padding:22px 40px 0; text-align:left;
+}
+.hero h1{
+  font-family:'Space Grotesk', sans-serif;
+  font-size:clamp(28px,5vw,44px);
+  font-weight:700;
+  line-height:1.15;
+  letter-spacing:-0.01em;
+  white-space:nowrap;
+  color:var(--navy);
+  position:relative;
+  display:inline-block;
+  animation:heroIn .5s ease both;
+}
+.hero h1::after{
+  content:'';
+  display:block;
+  width:72px; height:5px;
+  margin-top:10px;
+  background:var(--amber);
+  border-radius:3px;
+}
+.hero p{
+  margin:16px 0 0; font-size:15px; line-height:1.5;
+  color:rgba(27,27,27,.72); max-width:56ch;
+}
+@keyframes heroIn{
+  from{ opacity:0; transform:translateY(8px); }
+  to{ opacity:1; transform:translateY(0); }
+}
+@media (prefers-reduced-motion: reduce){
+  .hero h1{ animation:none; }
+}
 .grid-wrap{position:relative;z-index:1;flex:1;padding:20px 24px 40px}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:18px;max-width:1000px;margin:0 auto}
 a.card{display:block;text-decoration:none;background:var(--panel);border:1px solid var(--line);border-top:4px solid var(--amber);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);transition:transform .15s,box-shadow .15s}
