@@ -1,5 +1,3 @@
-/* office picker */
-body{display:flex;flex-direction:column}
 .hero{
   max-width:1200px;
   margin:0 auto;
@@ -13,22 +11,18 @@ body{display:flex;flex-direction:column}
   font-weight:800;
   line-height:1.1;
   letter-spacing:-0.02em;
-  color:#B07A00;                 /* mustard / ochre */
+  color:#F7C142;                 /* color from your photo */
   position:relative;
   display:inline-block;
-  padding:16px 36px;             /* even padding now that the bar is gone */
+  padding:16px 36px;
 
-  background:rgba(255,255,255,.82);
-  backdrop-filter:blur(6px);
-  -webkit-backdrop-filter:blur(6px);
+  background:var(--navy);        /* dark panel so the amber text pops */
   border-radius:18px;
-  box-shadow:0 10px 30px rgba(27,27,27,.18),
-             0 0 0 3px rgba(27,27,27,.9);
+  box-shadow:0 10px 30px rgba(27,27,27,.25),
+             0 0 0 3px #F7C142;  /* amber outline to match the text */
 
   animation:heroIn .6s cubic-bezier(.2,.8,.2,1) both;
 }
-
-/* underline bar removed: no .hero h1::after rule */
 
 .hero p{
   margin:18px auto 0;
@@ -51,11 +45,3 @@ body{display:flex;flex-direction:column}
 @media (prefers-reduced-motion: reduce){
   .hero h1{ animation:none; }
 }
-.grid-wrap{position:relative;z-index:1;flex:1;padding:20px 24px 40px}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:18px;max-width:1000px;margin:0 auto}
-a.card{display:block;text-decoration:none;background:var(--panel);border:1px solid var(--line);border-top:4px solid var(--amber);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);transition:transform .15s,box-shadow .15s}
-a.card:hover,a.card:focus-visible{transform:translateY(-3px);box-shadow:0 8px 22px rgba(18,32,46,.14)}
-a.card h3{font-size:19px;margin-bottom:6px}
-.detail{color:var(--ink-soft);font-size:13px;margin-bottom:14px}
-.go{display:flex;align-items:center;gap:8px;font-weight:600}
-.chip{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--navy);color:#fff}
