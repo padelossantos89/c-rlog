@@ -1,7 +1,7 @@
 /* office picker */
 body{display:flex;flex-direction:column}
 .hero{
-  max-width:1200px;            /* matches the width of the cards */
+  max-width:1200px;
   margin:0 auto;
   padding:28px 24px 8px;
   text-align:center;
@@ -9,16 +9,15 @@ body{display:flex;flex-direction:column}
 
 .hero h1{
   font-family:'Space Grotesk', sans-serif;
-  font-size:clamp(30px,5.5vw,60px);   /* much larger */
+  font-size:clamp(30px,5.5vw,60px);
   font-weight:800;
   line-height:1.1;
   letter-spacing:-0.02em;
-  color:var(--navy);
+  color:#B07A00;                 /* mustard / ochre */
   position:relative;
   display:inline-block;
-  padding:14px 36px 22px;
+  padding:16px 36px;             /* even padding now that the bar is gone */
 
-  /* frosted backing so the logo never interferes with the text */
   background:rgba(255,255,255,.82);
   backdrop-filter:blur(6px);
   -webkit-backdrop-filter:blur(6px);
@@ -29,18 +28,7 @@ body{display:flex;flex-direction:column}
   animation:heroIn .6s cubic-bezier(.2,.8,.2,1) both;
 }
 
-/* navy underline bar that is visible on the amber background */
-.hero h1::after{
-  content:'';
-  position:absolute;
-  left:50%;
-  bottom:10px;
-  width:90px;
-  height:6px;
-  background:var(--navy);
-  border-radius:3px;
-  transform:translateX(-50%);
-}
+/* underline bar removed: no .hero h1::after rule */
 
 .hero p{
   margin:18px auto 0;
@@ -56,9 +44,8 @@ body{display:flex;flex-direction:column}
   to{   opacity:1; transform:translateY(0) scale(1); }
 }
 
-/* let the headline wrap on small screens */
 @media (max-width:640px){
-  .hero h1{ padding:12px 20px 20px; }
+  .hero h1{ padding:12px 20px; }
 }
 
 @media (prefers-reduced-motion: reduce){
