@@ -1,0 +1,33 @@
+/* field crew status list — phone first. Top bar comes from base.css (.fieldbar). */
+body.field-page{display:block;min-height:100vh;padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))}
+#app{display:block;max-width:640px;margin:0 auto;padding:18px 16px}
+.titlebar{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.titlebar .back{font-weight:700;color:var(--navy);text-decoration:none;white-space:nowrap}
+.titlebar h1{flex:1;min-width:0;font-size:24px;font-weight:700;line-height:1.2}
+.refresh{flex:none;width:56px;height:56px;border-radius:14px;border:0;background:rgba(255,255,255,.45);color:var(--navy);font-size:24px;cursor:pointer}
+.refresh:disabled{opacity:.5}
+.listhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.listhead h2{font-size:21px;font-weight:700}
+.count{flex:none;min-width:42px;text-align:center;padding:5px 14px;border-radius:99px;background:var(--navy);color:#fff;font-weight:700;font-size:17px}
+.search{width:100%;min-height:50px;font-size:16px;padding:12px 16px;border-radius:14px;border:1px solid var(--line);background:#FFFCF5;margin-bottom:14px}
+.note{font-size:13px;color:var(--ink);margin:0 2px 10px;min-height:0}
+.note:empty{display:none}
+.note.err{color:var(--red);font-weight:600}
+.item{display:block;text-decoration:none;color:inherit;background:#FFFCF5;border:1px solid var(--line);border-left:6px solid var(--amber-deep);border-radius:20px;padding:16px 18px;margin-bottom:14px;box-shadow:0 4px 14px rgba(90,55,0,.12)}
+.item .top2{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.item .cn{font-family:'IBM Plex Mono',monospace;font-size:15px;letter-spacing:.02em}
+.item .nm{font-size:22px;font-weight:700;line-height:1.2;margin-top:10px;overflow-wrap:anywhere}
+.item .ad{font-size:17px;color:var(--ink-soft);margin-top:4px;overflow-wrap:anywhere}
+.item .ph{font-size:20px;font-weight:600;margin-top:8px}
+.item .mt{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline;margin-top:10px;font-size:17px;color:var(--ink-soft)}
+.item .mt b{color:var(--ink);font-size:19px}
+.item .ds{font-size:19px;margin-top:4px;overflow-wrap:anywhere}
+.item .bill{margin-top:12px;padding:12px 14px;border:1.5px dashed var(--amber-deep);border-radius:14px;background:#F3EEDD}
+.item .bill h3{font-family:Inter,sans-serif;font-size:17px;font-weight:700;color:var(--amber-deep);margin-bottom:6px}
+.item .bill div{display:flex;justify-content:space-between;gap:14px;font-size:17px;padding:3px 0}
+.item .bill span{color:var(--ink-soft)}
+.item .bill b{text-align:right;overflow-wrap:anywhere}
+.item .go{margin-top:14px;font-size:19px;font-weight:700}
+.empty{padding:26px;text-align:center;color:var(--ink);font-weight:600}
+.fab{position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:6;display:inline-flex;align-items:center;gap:12px;padding:18px 28px;border-radius:99px;background:var(--navy);color:#fff;font-weight:700;font-size:20px;text-decoration:none;box-shadow:0 8px 22px rgba(18,32,46,.4)}
+.fab span{color:var(--amber);font-size:28px;line-height:1}

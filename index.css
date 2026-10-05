@@ -1,0 +1,77 @@
+/* office selection */
+body{display:flex;flex-direction:column}
+.hero{
+  max-width:1200px;
+  margin:0 auto;
+  padding:28px 24px 8px;
+  text-align:center;
+}
+
+.hero h1{
+  font-family:'Space Grotesk', sans-serif;
+  font-size:clamp(30px,5.5vw,60px);
+  font-weight:800;
+  line-height:1.1;
+  letter-spacing:-0.02em;
+  color:#F7C142;                 /* color from your photo */
+  position:relative;
+  display:inline-block;
+  padding:16px 36px;
+
+  background:#FFFFFF;            /* white background */
+  border-radius:18px;
+  box-shadow:0 10px 30px rgba(27,27,27,.18),
+             0 0 0 3px var(--navy);
+
+  /* thin dark edge so the amber letters stay readable on white */
+  -webkit-text-stroke:1.5px var(--navy);
+  paint-order:stroke fill;
+
+  animation:heroIn .6s cubic-bezier(.2,.8,.2,1) both;
+}
+
+.hero p{
+  margin:18px auto 0;
+  font-size:16px;
+  font-weight:500;
+  line-height:1.5;
+  color:var(--navy);
+  max-width:56ch;
+}
+
+@keyframes heroIn{
+  from{ opacity:0; transform:translateY(-14px) scale(.97); }
+  to{   opacity:1; transform:translateY(0) scale(1); }
+}
+
+@media (max-width:640px){
+  .hero h1{ padding:12px 20px; }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .hero h1{ animation:none; }
+}
+.grid-wrap{position:relative;z-index:1;flex:1;padding:20px 24px 40px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:18px;max-width:1000px;margin:0 auto}
+a.card{display:block;text-decoration:none;background:var(--panel);border:1px solid var(--line);border-top:4px solid var(--amber);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);transition:transform .15s,box-shadow .15s}
+a.card:hover,a.card:focus-visible{transform:translateY(-3px);box-shadow:0 8px 22px rgba(18,32,46,.14)}
+a.card h3{font-size:19px;margin-bottom:6px}
+.detail{color:var(--ink-soft);font-size:13px;margin-bottom:14px}
+.go{display:flex;align-items:center;gap:8px;font-weight:600}
+.chip{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--navy);color:#fff}
+
+/* ===== Field-crew (phone) layout: office picker with pending counts ===== */
+.field-only{display:none}
+html.field-mode footer.foot{display:none}
+html.field-mode .hero{max-width:640px;text-align:left;padding:22px 16px 4px}
+html.field-mode .hero h1{display:block;padding:0;background:none;box-shadow:none;border-radius:0;-webkit-text-stroke:0;color:var(--navy);font-size:clamp(28px,8vw,40px);font-weight:700;animation:none}
+html.field-mode .hero p.field-only{display:block;margin:12px 0 0;max-width:none;font-size:16px;font-weight:400;color:rgba(18,32,46,.7)}
+html.field-mode .grid-wrap{padding:16px 16px 40px}
+html.field-mode .cards{grid-template-columns:1fr;gap:16px;max-width:640px}
+html.field-mode a.card{display:grid;grid-template-columns:minmax(0,1fr) auto auto;grid-template-areas:"t pill chip" "d pill chip";column-gap:12px;align-items:center;background:#FFFCF5;border:1px solid var(--line);border-top:1px solid var(--line);border-radius:20px;padding:22px 20px;box-shadow:0 6px 18px rgba(90,55,0,.12)}
+html.field-mode a.card h3{grid-area:t;font-size:20px;margin:0 0 6px}
+html.field-mode a.card .detail{grid-area:d;margin:0;font-size:15px;overflow-wrap:anywhere}
+html.field-mode a.card .pend{grid-area:pill;display:inline-block;padding:10px 16px;border-radius:99px;font-size:15px;font-weight:700;white-space:nowrap;background:#ECE9E2;color:var(--ink-soft)}
+html.field-mode a.card .pend.has{background:#FFE9A8;color:var(--amber-deep)}
+html.field-mode a.card .go{grid-area:chip;font-size:0;gap:0}
+html.field-mode a.card .chip{width:40px;height:40px;font-size:18px}

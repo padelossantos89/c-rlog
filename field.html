@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" type="image/png" href="logo.png">
+<meta name="theme-color" content="#122236">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>ILECO III · Pending complaints &amp; requests</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="base.css">
+<link rel="stylesheet" href="field.css">
+</head>
+<body class="protected amber field-page">
+<header class="top fieldbar">
+  <div class="mark"></div>
+  <div class="who"><b>Iloilo III Electric Cooperative, Inc.</b><small>Field crew &middot; <span id="username">&mdash;</span></small></div>
+  <button class="out" id="logout" type="button">Log out</button>
+</header>
+
+<main id="app">
+  <div class="titlebar">
+    <a class="back" href="index.html">&lsaquo; Offices</a>
+    <h1 id="office-name">&nbsp;</h1>
+    <button class="refresh" id="f-refresh" type="button" aria-label="Refresh">&#8635;</button>
+  </div>
+  <div class="listhead"><h2>Pending complaints &amp; requests</h2><span class="count" id="f-count">0</span></div>
+  <input id="f-q" class="search" type="search" placeholder="Search name, control no., barangay&hellip;" autocomplete="off">
+  <div id="f-msg" class="note"></div>
+  <div id="f-list"></div>
+</main>
+
+<a class="fab" id="fab" href="log.html"><span>+</span> Log a complaint</a>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" crossorigin="anonymous"></script>
+<script src="config.js"></script>
+<script src="common.js"></script>
+<script src="field.js"></script>
+</body>
+</html>
