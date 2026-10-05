@@ -61,7 +61,7 @@
             <div><label for="receivedBy">Received by</label><input type="text" id="receivedBy" placeholder="e.g. Datoon" required></div>
             <div><label for="complainant">Name of complainant</label><input type="text" id="complainant" placeholder="e.g. Patrick Angelo C. delos Santos" required></div>
             <div><label for="contactNumber">Contact number</label><input type="text" id="contactNumber" placeholder="e.g. 09171234567"></div>
-            <div><label for="sitio">Purok / Sitio / Street / Zone</label><input type="text" id="sitio" placeholder="e.g. Purok.7"></div>
+            <div><label for="sitio">Purok / Sitio / Street / Zone</label><input type="text" id="sitio" placeholder="e.g. Purok 7"></div>
             <div>
               <label for="barangay">Barangay</label>
               <select id="barangay" required><option value="">-- Select Barangay --</option></select>
@@ -73,7 +73,7 @@
                 <option value="">-- Select type --</option>
                 <optgroup label="SDI">
                   <option value="SD1">SD1 - Cut-off</option>
-                  <option value="SD2">SD2 - Loose</option>
+                  <option value="SD2">SD2 - Loose connection</option>
                   <option value="SD3">SD3 - Sagging</option>
                   <option value="SD4">SD4 - Sparking</option>
                 </optgroup>
@@ -112,8 +112,8 @@
                 </optgroup>
                 <optgroup label="Requests">
                   <option value="O1">O1 - Calibration</option>
-                  <option value="O2">O2 - Transfer of kWh &amp; SD1</option>
-                  <option value="O3">O3 - Clearing/Rehab/Relocation of Down</option>
+                  <option value="O2">O2 - Transfer of kWh &amp; SDI</option>
+                  <option value="O3">O3 - Clearing/Rehab/Relocation of Down Guy</option>
                   <option value="O4">O4 - Temporary Disco</option>
                   <option value="O5">O5 - Correction of Account Name / Type of Consumer &amp; Others</option>
                   <option value="O6">O6 - Change of Family Name (Change Status)</option>
@@ -125,7 +125,7 @@
                 </optgroup>
               </select>
             </div>
-            <div><label for="description">Description</label><input type="text" id="description" placeholder="e.g. No power since yesterday evening"></div>
+            <div><label for="description">Description</label><input type="text" id="description" placeholder="e.g. Loose connection"></div>
           </div>
 
           <fieldset style="margin-top:14px;">
@@ -156,7 +156,7 @@
           <legend>Field response</legend>
           <div class="field-note" style="margin-bottom:10px;">Save a complaint above to get a Control Number and unlock this section automatically — or type/paste an existing Control Number here and press Enter to look one up.</div>
           <div class="grid">
-            <div><label for="frControl">Control Number</label><input type="text" id="frControl" placeholder="e.g. PBO-09-22-0001 — press Enter">
+            <div><label for="frControl">Control Number</label><input type="text" id="frControl" placeholder="e.g. PBO-05-02-0001 — press Enter">
               <div id="fr-lookup-msg" style="font-size:11px; margin-top:4px; min-height:14px;"></div>
             </div>
             <div><label for="frComplainant">Name of complainant</label><input type="text" id="frComplainant" readonly placeholder="–"></div>
