@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="referrer" content="no-referrer">
 <link rel="icon" type="image/png" href="logo.png">
 <title>ILECO III · Admin</title>
@@ -142,7 +142,6 @@
           <tbody id="overall-body"></tbody>
         </table>
       </div>
-      <div class="pg-bar" id="overall-pg"></div>
     </section>
   </main>
 </div>
@@ -152,6 +151,8 @@
 <script src="config.js"></script>
 <script src="common.js"></script>
 <script src="records.js"></script>
+<script src="letterhead.js"></script>
+<script src="excel-export.js"></script>
 <script src="admin.js"></script>
 </body>
 </html>
