@@ -61,7 +61,7 @@ const CONTROL_PREFIX = { "pani-an":"PBO", "sara":"SBO", "natividad":"NBO", "main
 
 /* ---------- Type of complaint -> Description auto-fill ---------- */
 const TYPE_DESCRIPTIONS = {
-  "SD1":"Cut-off", "SD2":"Loose", "SD3":"Sagging", "SD4":"Sparking",
+  "SD1":"Cut-off", "SD2":"Loose connection", "SD3":"Sagging", "SD4":"Sparking",
   "K1":"Damaged/Burned/Stopped", "K2":"Defective",
   "LF1":"Vegetation, Animal Contact, Lightning, and Damage on Hardwares",
   "LF2":"Broken Insulator", "LF3":"Transformer Loose Connection", "LF4":"Others (Private Transformer)",
