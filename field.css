@@ -1,4 +1,3 @@
-/* field crew status list — phone first. Top bar comes from base.css (.fieldbar). */
 body.field-page{display:block;min-height:100vh;padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))}
 #app{display:block;max-width:640px;margin:0 auto;padding:18px 16px}
 .titlebar{display:flex;align-items:center;gap:12px;margin-bottom:18px}
