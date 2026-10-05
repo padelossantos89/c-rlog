@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" type="image/png" href="logo.png">
+<title>ILECO III · Choose your branch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="base.css">
+<link rel="stylesheet" href="index.css">
+</head>
+<body class="protected amber">
+<div class="wm">
+  <div class="wm-base"></div>
+  <div class="wm-shine"></div>
+</div>
+
+<header class="top">
+  <div class="brand">
+    <div class="mark"></div>
+    <span>Iloilo III Electric Cooperative, Inc.</span>
+  </div>
+  <div class="tag">Complaint &amp; Request Log</div>
+</header>
+
+<section class="hero">
+  <h1>Which office are you reporting to?</h1>
+  <p class="pick-note">Pick an office to see its pending complaints and requests.</p>
+</section>
+
+<section class="grid-wrap">
+  <div class="cards">
+    <a class="card" href="log.html?branch=pani-an" data-office="Pani-an Branch Office">
+      <h3>Pani-an Branch Office</h3>
+      <div class="detail">ileco3.pao@gmail.com</div>
+      <span class="pend field-only">…</span>
+      <div class="go"><span class="chip">→</span> Open this office's log</div>
+    </a>
+    <a class="card" href="log.html?branch=sara" data-office="Sara Branch Office">
+      <h3>Sara Branch Office</h3>
+      <div class="detail">ileco3.sao@gmail.com</div>
+      <span class="pend field-only">…</span>
+      <div class="go"><span class="chip">→</span> Open this office's log</div>
+    </a>
+    <a class="card" href="log.html?branch=natividad" data-office="Natividad Branch Office">
+      <h3>Natividad Branch Office</h3>
+      <div class="detail">ileco3.nao@gmail.com</div>
+      <span class="pend field-only">…</span>
+      <div class="go"><span class="chip">→</span> Open this office's log</div>
+    </a>
+    <a class="card" href="log.html?branch=main" data-office="ILECO-III Main Office">
+      <h3>ILECO-III Main Office</h3>
+      <div class="detail">ileco3@gmail.com</div>
+      <span class="pend field-only">…</span>
+      <div class="go"><span class="chip">→</span> Open this office's log</div>
+    </a>
+  </div>
+</section>
+
+<footer class="foot">
+  <div><a href="https://www.ileco3.com" target="_blank" rel="noopener" style="color:#fff; text-decoration:underline;"><strong>www.ileco3.com</strong></a></div>
+  <div id="footer-user-area" style="display:flex; gap:16px; align-items:center;">
+    <a href="admin.html" id="admin-link" style="display:none; color:#fff; text-decoration:underline;">Admin Dashboard</a>
+    <a href="#" id="logout-link" style="color:#fff; text-decoration:underline;">Log out</a>
+  </div>
+  <div>Iloilo III Electric Cooperative, Inc.</div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" crossorigin="anonymous"></script>
+<script src="config.js"></script>
+<script src="common.js"></script>
+<script src="index.js"></script>
+
+</body>
+</html>
